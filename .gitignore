@@ -1,0 +1,35 @@
+# Large game data is hosted in Google Cloud Storage and must never enter this repository.
+/assets/
+/idle-assets-transfer.zip
+*.zip
+
+# Local dependencies, desktop builds and development-only copies.
+/node_modules/
+/dist-windows/
+/.electron-cache/
+/.electron-builder-cache/
+/cloudflare-deploy/
+/desktop/
+/tools/
+/supabase/
+
+# Local deployment tools, firewall helpers and database setup scripts.
+/*.ps1
+/*.cmd
+/*.sql
+/.firebaserc
+/firebase.json
+/wrangler.toml
+/_headers
+
+# Credentials, editor/system files and temporary service output.
+.env
+.env.*
+!.env.example
+/.vscode/
+/.idea/
+Thumbs.db
+Desktop.ini
+*.log
+/.firebase/
+/.firebase-tool-home/

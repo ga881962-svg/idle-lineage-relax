@@ -1,0 +1,16 @@
+{
+  "name": "放置天堂－休閒養老",
+  "short_name": "放置天堂",
+  "description": "可在網頁、Windows 與手機使用同一帳號與線上存檔的放置冒險遊戲。",
+  "lang": "zh-TW",
+  "start_url": "./?platform=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1628",
+  "theme_color": "#0b1628",
+  "orientation": "landscape",
+  "icons": [
+    { "src": "assets/favicon.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "public/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
