@@ -9,7 +9,7 @@
     let client = null;
     let activeUser = null;
     let cloudGmRole = null;
-    const cloudSync = { characterId:null, revision:0, timer:null, inFlight:false, warned:false, ready:false, sessionToken:null, sessionUserId:null, heartbeat:null, opening:null, locked:false, edgeUnavailable:false };
+    const cloudSync = { characterId:null, revision:0, timer:null, retryTimer:null, inFlight:false, warned:false, ready:false, sessionToken:null, sessionUserId:null, heartbeat:null, opening:null, locked:false, kicking:false };
     const DEVICE_STORAGE_KEY = 'idle_lineage_device_id_v1';
 
     function newUuid() {
@@ -95,7 +95,7 @@
                 const response = result.error.context;
                 // `functions.invoke` exposes the status on the Response even
                 // when an intermediary strips its JSON body.
-                if (response && response.status === 409) throw new Error('SESSION_ACTIVE_ELSEWHERE');
+                if (response && response.status === 409) throw new Error('SESSION_REPLACED');
                 if (response && response.status === 429) throw new Error('IP_ACCOUNT_LIMIT');
                 const body = response && typeof response.clone === 'function'
                     ? await response.clone().json()
@@ -115,7 +115,7 @@
         return String(error && (error.message || error) || '');
     }
     function isSessionError(error) {
-        return /SESSION_REPLACED|SESSION_REQUIRED|INVALID_SESSION|IP_ACCOUNT_LIMIT/i.test(sessionErrorCode(error));
+        return /SESSION_REPLACED|SESSION_REQUIRED|INVALID_SESSION|SESSION_EXPIRED|IP_ACCOUNT_LIMIT/i.test(sessionErrorCode(error));
     }
     function removeSessionOverlay() {
         var old = document.getElementById('online-session-lock');
@@ -123,36 +123,51 @@
     }
     function showSessionOverlay(mode) {
         removeSessionOverlay();
-        var takeover = mode === 'conflict';
         var overlay = document.createElement('div');
         overlay.id = 'online-session-lock';
         overlay.className = 'online-session-lock';
         overlay.innerHTML = '<section class="online-session-lock-card" role="dialog" aria-modal="true">'
           + '<div class="online-session-lock-icon">🔒</div>'
-          + '<h2>' + (takeover ? '此帳號已在其他地方遊戲中' : '此帳號已在其他裝置接管') + '</h2>'
-          + '<p>' + (takeover ? '為防止多開洗裝備，同一帳號同時只能有一個遊戲畫面。此頁面暫停存檔（唯讀）。' : '另一個裝置已接管這個帳號。這個畫面已停止存檔與所有交易操作。') + '</p>'
-          + (takeover ? '<button class="online-session-takeover" type="button" onclick="window.onlineSessionTakeover()">在此接管遊戲（踢掉另一個）</button>' : '')
+          + '<h2>此帳號已在其他裝置登入</h2>'
+          + '<p>這個畫面已停止遊戲操作、存檔與交易，並已安全登出。</p>'
           + '<button class="online-session-logout" type="button" onclick="window.onlineSessionLogout()">登出／改用其他帳號</button>'
           + '</section>';
         document.body.appendChild(overlay);
     }
+    function stopCloudActivity() {
+        cloudSync.locked = true;
+        if (cloudSync.timer) { clearTimeout(cloudSync.timer); cloudSync.timer = null; }
+        if (cloudSync.retryTimer) { clearTimeout(cloudSync.retryTimer); cloudSync.retryTimer = null; }
+        if (cloudSync.heartbeat) { clearInterval(cloudSync.heartbeat); cloudSync.heartbeat = null; }
+        // Stop the local combat and save loops before signing out.  An already
+        // in-flight request is harmless because the server re-checks its token.
+        if (typeof window.stopGameTimers === 'function') window.stopGameTimers();
+    }
     async function sessionKicked(error) {
+        if (cloudSync.kicking) return;
+        cloudSync.kicking = true;
+        stopCloudActivity();
         cloudSync.sessionToken = null;
         cloudSync.sessionUserId = null;
-        cloudSync.locked = true;
-        if (cloudSync.heartbeat) { clearInterval(cloudSync.heartbeat); cloudSync.heartbeat = null; }
         var reason = /IP_ACCOUNT_LIMIT/i.test(String(error && (error.message || error) || ''))
             ? '此網路已有另一個帳號在線，請先讓另一帳號離線後再登入。'
             : '此帳號已在另一台裝置登入，目前裝置已被登出。';
-        message(reason, 'error');
-        showSessionOverlay('replaced');
+        // Use local sign-out only: a global Supabase sign-out would also
+        // invalidate the new device's Auth session.
+        try { if (client) await client.auth.signOut({ scope:'local' }); } catch (_) {}
+        activeUser = null;
+        removeSessionOverlay();
+        render(null);
+        showModal();
+        message(/IP_ACCOUNT_LIMIT/i.test(String(error && (error.message || error) || '')) ? reason : '此帳號已在其他裝置登入', 'error');
+        cloudSync.kicking = false;
     }
-    async function openGameSession(user, takeover) {
+    async function openGameSession(user) {
         if (!user || !client) {
             window.__idleSessionFailure = 'CLIENT_OR_USER_UNAVAILABLE';
             return false;
         }
-        if (!takeover && cloudSync.sessionUserId === user.id && cloudSync.sessionToken) return true;
+        if (cloudSync.sessionUserId === user.id && cloudSync.sessionToken && !cloudSync.locked) return true;
         if (cloudSync.opening) return cloudSync.opening;
         window.__idleSessionOpening = true;
         cloudSync.opening = (async function () {
@@ -160,7 +175,7 @@
             try {
                 var data;
                 try {
-                    data = await gameApi({ action:'session.open', deviceId:deviceId(), takeover:!!takeover });
+                    data = await gameApi({ action:'session.open', deviceId:deviceId() });
                 } catch (firstError) {
                     // A restored browser tab can still have an expired Auth token. Refresh it
                     // once before treating the secure game session as unavailable.
@@ -169,7 +184,7 @@
                     var refreshed = await client.auth.refreshSession();
                     if (refreshed.error || !refreshed.data || !refreshed.data.user) throw firstError;
                     activeUser = refreshed.data.user;
-                    data = await gameApi({ action:'session.open', deviceId:deviceId(), takeover:!!takeover });
+                    data = await gameApi({ action:'session.open', deviceId:deviceId() });
                 }
                 if (!data || !data.sessionToken) throw new Error('SESSION_OPEN_FAILED');
                 cloudSync.sessionToken = data.sessionToken;
@@ -185,41 +200,20 @@
                 return true;
             } catch (error) {
                 window.__idleSessionFailure = String(error && (error.message || error) || 'SESSION_OPEN_FAILED');
-                if (/SESSION_ACTIVE_ELSEWHERE/i.test(sessionErrorCode(error))) {
-                    cloudSync.locked = true;
-                    showSessionOverlay('conflict');
-                } else if (isSessionError(error)) await sessionKicked(error);
-                else {
-                    // Edge Function 故障時仍可用登入帳號的 RLS/RPC 讀取既有存檔，
-                    // 不讓玩家被「安全連線」卡在選角畫面。寫入與 GM 功能仍維持關閉。
-                    cloudSync.edgeUnavailable = true;
-                    cloudSync.sessionUserId = user.id;
-                    cloudSync.sessionToken = null;
-                    return true;
-                }
+                if (isSessionError(error)) await sessionKicked(error);
+                else message('安全連線暫時無法建立，請確認網路後重試。', 'error');
                 return false;
             } finally { cloudSync.opening = null; window.__idleSessionOpening = false; }
         })();
         return cloudSync.opening;
     }
-    window.onlineSessionTakeover = async function () {
-        if (!activeUser) return;
-        var button = document.querySelector('.online-session-takeover');
-        if (button) { button.disabled = true; button.textContent = '正在接管遊戲…'; }
-        var ok = await openGameSession(activeUser, true);
-        if (ok) {
-            cloudSync.locked = false;
-            message('已在此裝置接管遊戲，另一個畫面已鎖定。', 'success');
-            try { await refreshCloudGmAccess(activeUser); } catch (_) {}
-        } else if (button) {
-            button.disabled = false;
-            button.textContent = '在此接管遊戲（踢掉另一個）';
-        }
-    };
     window.onlineSessionLogout = async function () {
-        cloudSync.locked = true;
-        if (cloudSync.heartbeat) { clearInterval(cloudSync.heartbeat); cloudSync.heartbeat = null; }
-        try { if (client) await client.auth.signOut(); } catch (_) {}
+        const token = cloudSync.sessionToken;
+        stopCloudActivity();
+        // Closing a replaced token cannot affect the new token because the
+        // server updates only the matching token row.
+        try { if (client && token) await gameApi({ action:'session.close', sessionToken:token }); } catch (_) {}
+        try { if (client) await client.auth.signOut({ scope:'local' }); } catch (_) {}
         activeUser = null;
         cloudSync.sessionToken = null;
         cloudSync.sessionUserId = null;
@@ -244,18 +238,15 @@
             applyCloudGmAccess(false);
         }
     }
-    function queueCloudSave() {
-        if (!cloudSync.characterId || cloudSync.timer || cloudSync.inFlight) return;
+    function queueCloudSave(delay) {
+        if (cloudSync.locked || !cloudSync.sessionToken || !cloudSync.characterId || cloudSync.timer || cloudSync.inFlight) return;
         cloudSync.timer = setTimeout(function () {
             cloudSync.timer = null;
             syncCloudSave();
-        }, 15000);
+        }, Number.isFinite(Number(delay)) ? Number(delay) : 15000);
     }
     async function syncCloudSave() {
-        // The secure Edge Function is temporarily unavailable.  Do not keep
-        // retrying writes while the roster is using the safe read-only RPC path.
-        if (cloudSync.edgeUnavailable) return;
-        if (cloudSync.locked || !cloudSync.characterId || cloudSync.inFlight || typeof player === 'undefined' || !player || !player.cls || player.cloudCharacterId !== cloudSync.characterId) return;
+        if (cloudSync.locked || !cloudSync.sessionToken || !cloudSync.characterId || cloudSync.inFlight || typeof player === 'undefined' || !player || !player.cls || player.cloudCharacterId !== cloudSync.characterId) return;
         if (typeof saveStateJson !== 'function') return;
         cloudSync.inFlight = true;
         try {
@@ -273,6 +264,14 @@
                 cloudSync.warned = true;
                 logSys('<span class="text-yellow-300">☁ 雲端存檔暫時未完成，本機進度仍已保留。</span>');
             }
+            // Transient transport failures are retried, but never bypass the
+            // server session check or fall back to a direct database write.
+            if (!cloudSync.locked && cloudSync.sessionToken && !cloudSync.retryTimer) {
+                cloudSync.retryTimer = setTimeout(function () {
+                    cloudSync.retryTimer = null;
+                    syncCloudSave();
+                }, 10000);
+            }
         } finally {
             cloudSync.inFlight = false;
         }
@@ -285,7 +284,11 @@
             checkpoint = data && data.checkpoint;
         } catch (error) {
             apiError = error;
-            // 手機網路、隧道或 Edge Function 暫時不穩時，直接使用已登入帳號的
+            if (isSessionError(error)) await sessionKicked(error);
+            return null;
+            /* Legacy direct database fallback intentionally disabled: the
+               active session token must be verified by idle-api first. */
+            /*
             // 資料庫讀取權限取得同一份存檔，不能因單一路徑失敗而遺失進度。
             try {
                 const direct = await client.from('character_checkpoints')
@@ -298,6 +301,7 @@
                 console.warn('讀取雲端存檔失敗。', apiError, directError);
                 return null; // 連線錯誤：絕不能把既有角色當成新角色開局。
             }
+            */
         }
         if (!checkpoint) return false; // 新建立、尚未有任何存檔的角色。
         if (!checkpoint.state || typeof checkpoint.state !== 'object') return null;
@@ -319,6 +323,7 @@
             if (document.visibilityState === 'hidden') syncCloudSave();
         });
         window.addEventListener('pagehide', function () {
+            if (cloudSync.locked) return;
             if (typeof window.offlineHuntSetDeparture === 'function') window.offlineHuntSetDeparture();
             syncCloudSave();
         });
@@ -408,6 +413,10 @@
         return null;
     }
     async function withCheckpointLevels(rows) {
+        // Character list data must only come from the session-protected API.
+        // The game already keeps the saved level in the checkpoint state after loading.
+        return rows || [];
+        /*
         if (!client || !Array.isArray(rows) || !rows.length) return rows || [];
         const ids = rows.map(function (row) { return row.id; }).filter(Boolean);
         if (!ids.length) return rows;
@@ -430,23 +439,18 @@
             return rows;
         }
     }
+        */
+    }
     async function getRoster() {
         if (!client || !activeUser) throw new Error('請先登入帳號。');
         if (!await openGameSession(activeUser)) throw new Error('安全連線尚未建立。');
-        if (cloudSync.edgeUnavailable) {
-            const fallbackOnly = await client.rpc('list_my_characters');
-            if (fallbackOnly.error) throw fallbackOnly.error;
-            return withCheckpointLevels(Array.isArray(fallbackOnly.data) ? fallbackOnly.data : []);
-        }
         try {
             const result = await gameApi({ action:'characters.list' });
             return withCheckpointLevels(Array.isArray(result.characters) ? result.characters : []);
         } catch (apiError) {
             // 角色 RPC 僅能操作登入者自己的角色，作為部署中的安全備援。
             console.warn('game-api 尚未可用，改用受限角色入口。', apiError);
-            const fallback = await client.rpc('list_my_characters');
-            if (fallback.error) throw fallback.error;
-            return withCheckpointLevels(Array.isArray(fallback.data) ? fallback.data : []);
+            throw apiError;
         }
     }
     function rosterClassOptions() {
@@ -534,13 +538,8 @@
         if (!name || name.length > 20) return message('請輸入 1 至 20 個字的角色名稱。', 'error');
         message('建立中…');
         try {
-            let result = await client.functions.invoke(GAME_API_FUNCTION, { body: { action:'characters.create', slot:slot, name:name, classId:(API_CLASS_IDS[classId] || classId) } });
-            if (result.error || (result.data && result.data.error)) {
-                console.warn('game-api 尚未可用，改用受限角色入口。', result.error || result.data.error);
-                result = await client.rpc('create_player_character', { p_slot:slot, p_name:name, p_class_id:classId });
-            }
-            if (result.error) return message(result.error.message || '建立失敗。', 'error');
-            if (result.data && result.data.error) return message(result.data.error, 'error');
+            const result = await gameApi({ action:'characters.create', slot:slot, name:name, classId:(API_CLASS_IDS[classId] || classId) });
+            if (result.error) return message(result.error, 'error');
             message('角色存檔已建立。', 'success');
             const rows = await getRoster();
             const list = document.getElementById('online-roster-list');

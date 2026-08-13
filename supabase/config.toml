@@ -1,0 +1,7 @@
+project_id = "fsolkoidqqzwjitbycds"
+
+[functions.game-api]
+verify_jwt = true
+
+[functions.idle-api]
+verify_jwt = true

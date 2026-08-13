@@ -12,6 +12,14 @@
 /desktop/
 /tools/
 /supabase/
+!/supabase/
+!/supabase/functions/
+/supabase/functions/game-api/
+!/supabase/functions/idle-api/
+!/supabase/functions/idle-api/index.ts
+!/supabase/migrations/
+!/supabase/migrations/202608140001_single_active_session.sql
+!/supabase/config.toml
 
 # Local deployment tools, firewall helpers and database setup scripts.
 /*.ps1
