@@ -1,115 +1,115 @@
-/* 雲端世界頻道：停用所有 NPC 假人發言，只顯示真實登入玩家訊息。 */
+/* 世界頻道：只接收在線期間的 Realtime Broadcast，不保存任何聊天文字。 */
 (function () {
   'use strict';
-  const MAX_MESSAGE_LENGTH = 120;
-  let realtimeChannel = null;
-  let loaded = false;
+  var MAX_MESSAGE_LENGTH = 120;
+  var TOPIC = 'world:global';
+  var channel = null;
+  var subscribed = false;
+  var observer = null;
 
   function esc(value) {
-    return String(value || '').replace(/[&<>"']/g, function (char) {
-      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char];
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch];
     });
   }
-
+  function logElement() { return document.getElementById('world-log'); }
+  function clear() {
+    var log = logElement();
+    if (log) log.innerHTML = '';
+    var pins = document.getElementById('sys-log-pins');
+    if (pins) pins.innerHTML = '';
+  }
   function append(message) {
-    const log = document.getElementById('world-log');
+    var log = logElement();
     if (!log || !message || !message.id) return;
-    if (log.querySelector('[data-online-world-id="' + String(message.id) + '"]')) return;
-    const row = document.createElement('div');
-    row.className = 'online-world-message';
-    row.dataset.onlineWorldId = String(message.id);
-    const time = message.created_at ? new Date(message.created_at).toLocaleTimeString('zh-TW', { hour:'2-digit', minute:'2-digit' }) : '';
-    row.innerHTML = '<span class="online-world-time">[' + esc(time) + ']</span> '
-      + '<strong class="online-world-name">' + esc(message.sender_name || '冒險者') + '</strong>：'
-      + '<span>' + esc(message.content) + '</span>';
+    var id = String(message.id);
+    if (log.querySelector('[data-online-world-id="' + id.replace(/"/g, '') + '"]')) return;
+    var row = document.createElement('div');
+    row.className = 'world-message';
+    row.dataset.onlineWorldId = id;
+    row.innerHTML = '<b class="text-cyan-300">[' + esc(message.name || '冒險者') + ']</b> ' + esc(message.content || '');
     log.appendChild(row);
-    while (log.children.length > 100) log.removeChild(log.firstChild);
     log.scrollTop = log.scrollHeight;
   }
-
-  async function clientReady() {
-    const client = typeof window.onlineSupabase === 'function' ? window.onlineSupabase() : null;
-    if (!client) return null;
-    const result = await client.auth.getUser();
-    return result.data && result.data.user ? client : null;
+  function removeChannel() {
+    var c = typeof window.onlineSupabase === 'function' ? window.onlineSupabase() : null;
+    if (channel && c && typeof c.removeChannel === 'function') c.removeChannel(channel);
+    channel = null;
+    subscribed = false;
   }
-
-  async function loadAndSubscribe() {
-    if (loaded) return;
-    const client = await clientReady();
-    if (!client) return;
-    loaded = true;
-    const log = document.getElementById('world-log');
-    if (log) log.innerHTML = '';
-    const result = await client.from('world_messages')
-      .select('id,sender_name,content,created_at')
-      .order('id', { ascending:false }).limit(100);
-    if (!result.error) (result.data || []).reverse().forEach(append);
-    realtimeChannel = client.channel('online-world-channel')
-      .on('postgres_changes', { event:'INSERT', schema:'public', table:'world_messages' }, function (payload) { append(payload.new); })
-      .subscribe();
-  }
-
-  async function send() {
-    const input = document.getElementById('world-input');
-    const text = String(input && input.value || '').trim();
-    if (!text) return;
-    if (text.length > MAX_MESSAGE_LENGTH) return alert('世界頻道訊息最多 ' + MAX_MESSAGE_LENGTH + ' 個字。');
-    const client = await clientReady();
-    if (!client || typeof player === 'undefined' || !player || !player.cloudCharacterId) {
-      return alert('請先登入並進入角色存檔，才能使用世界頻道。');
-    }
-    const result = await client.rpc('send_world_message', {
-      p_character_id: player.cloudCharacterId,
-      p_content: text
+  function connect() {
+    var c = typeof window.onlineSupabase === 'function' ? window.onlineSupabase() : null;
+    if (!c || channel || !window.onlineCloudSessionToken || !window.onlineCloudSessionToken()) return;
+    // Private topic + an RLS receive-only policy means browser code can listen,
+    // but cannot impersonate a sender by broadcasting directly.
+    channel = c.channel(TOPIC, { config: { private: true, broadcast: { self: true, ack: true } } });
+    channel.on('broadcast', { event: 'world_message' }, function (payload) {
+      append(payload && payload.payload);
+    }).subscribe(function (status) {
+      subscribed = status === 'SUBSCRIBED';
     });
-    if (result.error) return alert(result.error.message || '世界頻道送出失敗。');
-    input.value = '';
-    append(result.data);
   }
-
-  function install() {
-    // Legacy NPC broadcasters may continue to write to the same panel after
-    // their initial timer has been cleared.  Reserve this panel for real
-    // cloud-player messages only.
-    window.logWorld = function () {};
-    window.worldChannelAsk = send;
-    window.worldChannelNpcMenu = function () {};
-    window.worldChannelTaunt = function () {};
-    window.worldChannelThank = function () {};
-    window.worldChannelPrivateChat = function () {};
-
-    const purgeLegacyRows = function () {
-      const log = document.getElementById('world-log');
-      if (!log) return;
-      Array.from(log.children).forEach(function (row) {
-        if (!row.dataset || !row.dataset.onlineWorldId) row.remove();
-      });
-      // 舊版「NPC 收購」釘選廣播不屬於真實世界頻道，公開版一律隱藏。
-      const pins = document.getElementById('sys-log-pins');
-      if (pins) {
-        pins.replaceChildren();
-        pins.hidden = true;
-      }
-    };
-    purgeLegacyRows();
-    setInterval(purgeLegacyRows, 1000);
-    // 停止舊版假人閒聊計時器，並用真正玩家頻道取代舊的問答系統。
-    if (typeof _wcIdleTimer !== 'undefined' && _wcIdleTimer) {
-      clearInterval(_wcIdleTimer);
-      _wcIdleTimer = null;
+  function currentCharacter() {
+    return typeof player !== 'undefined' && player && player.cloudCharacterId ? player.cloudCharacterId : '';
+  }
+  async function send() {
+    var input = document.getElementById('world-input');
+    var content = String(input && input.value || '').trim();
+    if (!content) return;
+    if (content.length > MAX_MESSAGE_LENGTH) return window.alert('世界頻道訊息最多 ' + MAX_MESSAGE_LENGTH + ' 個字。');
+    if (!currentCharacter() || !window.onlineCloudSessionToken || !window.onlineCloudSessionToken()) {
+      return window.alert('安全連線尚未建立，請重新登入。');
     }
-    window.worldChannelAsk = send;
-    const input = document.getElementById('world-input');
-    if (input) input.placeholder = '輸入世界頻道訊息（需登入角色存檔）';
-    const waitForLogin = setInterval(function () {
-      loadAndSubscribe().then(function () {
-        if (loaded) clearInterval(waitForLogin);
-      }).catch(function () {});
-    }, 700);
-    loadAndSubscribe().catch(function () {});
+    if (typeof window.onlineCloudApi !== 'function') return window.alert('聊天服務尚未準備完成，請稍後再試。');
+    var button = document.getElementById('world-send');
+    if (button) button.disabled = true;
+    try {
+      await window.onlineCloudApi({ action: 'world.send', characterId: currentCharacter(), content: content });
+      input.value = '';
+    } catch (error) {
+      var text = String(error && error.message || error || '');
+      if (/SESSION_REPLACED|SESSION_REQUIRED|SESSION_EXPIRED/i.test(text)) return;
+      window.alert(/CHAT_COOLDOWN/i.test(text) ? '發言太快，請稍後再試。' : '訊息送出失敗，請稍後再試。');
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
-  else install();
+  function install() {
+    // The previous implementation read world_messages and subscribed to
+    // Postgres changes.  Do neither: this log starts empty for every session.
+    clear();
+    connect();
+    var log = logElement();
+    if (log && !observer && typeof MutationObserver !== 'undefined') {
+      // The old offline channel contains NPC message timers. Keep this log
+      // exclusively for verified Broadcast messages without changing its
+      // unrelated legacy implementation.
+      observer = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+          mutation.addedNodes.forEach(function (node) {
+            if (node.nodeType === 1 && !node.dataset.onlineWorldId) node.remove();
+          });
+        });
+      });
+      observer.observe(log, { childList:true });
+    }
+    var input = document.getElementById('world-input');
+    if (input && !input.dataset.onlineWorldBound) {
+      input.dataset.onlineWorldBound = '1';
+      input.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); send(); }
+      });
+    }
+    var sendButton = document.getElementById('world-send');
+    if (sendButton && !sendButton.dataset.onlineWorldBound) {
+      sendButton.dataset.onlineWorldBound = '1';
+      sendButton.addEventListener('click', send);
+    }
+  }
+  window.onlineWorldChatReset = function () { clear(); removeChannel(); };
+  window.onlineWorldChatConnect = function () { clear(); connect(); };
+  // Existing legacy Enter-key handling calls this global dynamically. Replace
+  // it so it follows the authenticated API path instead of spawning NPC text.
+  window.worldChannelAsk = send;
+  document.addEventListener('DOMContentLoaded', install);
 })();

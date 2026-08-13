@@ -360,7 +360,7 @@
                 <!-- 💬 提問輸入列：Enter 或按鈕送出，隨機 NPC 回答（也可能只是來嘲笑）；點 NPC 名字可嘲諷／感謝 -->
                 <div id="world-input-row">
                     <input id="world-input" type="text" maxlength="60" autocomplete="off" placeholder="向世界頻道發問（例：50級去哪練功？法師怎麼玩？大馬那裡打？）">
-                    <button id="world-send" onclick="worldChannelAsk()">發問</button>
+                    <button id="world-send" type="button">發送</button>
                 </div>
                 <!-- 🔒 世界頻道捲動鎖定提示（同戰鬥日誌） -->
                 <button id="world-log-unlock" onclick="worldLogToBottom()" class="hidden absolute left-1/2 -translate-x-1/2 bottom-14 z-10 px-3 py-1 text-xs font-bold rounded-full shadow-lg bg-amber-700/90 hover:bg-amber-600 border border-amber-400 text-amber-50">🔒 已鎖定捲動 ▾ 回到最新</button>
@@ -662,9 +662,9 @@ window.refreshEquipmentWindow = function () {};
 <script src="js/36-offline-hunt.js?v=5-auto-revive-entry-gate"></script>
 <script src="js/37-profile-progress.js?v=2-direct-game-state"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/38-online-auth.js?v=32-roster-fallback"></script>
-<script src="js/40-online-world-chat.js?v=3-real-players-only"></script>
-<script src="js/41-player-exchange.js?v=7-secure-market-session"></script>
+  <script src="js/38-online-auth.js?v=34-exclusive-session"></script>
+  <script src="js/40-online-world-chat.js?v=5-verified-broadcast"></script>
+  <script src="js/41-player-exchange.js?v=9-quantity-unit-price"></script>
 <script>
 function mobileGameJump(id) {
   var target = document.getElementById(id);

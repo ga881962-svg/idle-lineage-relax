@@ -151,7 +151,7 @@ Deno.serve(async (request) => {
     return error ? reply({ error: "CHARACTER_CREATE_FAILED" }, 500) : reply({ character: data }, 201);
   }
 
-  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
+  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
   if (protectedActions.has(String(input.action))) { const denied = await requireSession(); if (denied) return denied; }
   if (input.action === "gm.status") { const role = await getRole(); return reply({ allowed: !!role, role: role || "player" }); }
 
@@ -200,6 +200,29 @@ Deno.serve(async (request) => {
     }
     const nextRevision = int((committed as Record<string, unknown> | null)?.revision, revision + 1);
     return reply({ revision: nextRevision });
+  }
+
+  if (input.action === "world.send") {
+    const character = await ownCharacter(input.characterId);
+    const content = String(input.content || "").trim();
+    if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
+    if (content.length < 1 || content.length > 120) return reply({ error: "INVALID_CHAT_MESSAGE" }, 400);
+    // The database stores only a short per-account cooldown timestamp, never
+    // message text. The RPC updates it atomically to prevent rapid retries.
+    // Use the caller-scoped client here. The RPC deliberately checks auth.uid()
+    // so a service-role call cannot impersonate a player when consuming a chat
+    // cooldown slot.
+    const { data: allowed, error: cooldownError } = await auth.rpc("consume_world_chat_cooldown", { p_user_id: user.id });
+    if (cooldownError) return reply({ error: "CHAT_COOLDOWN_CHECK_FAILED" }, 500);
+    if (!allowed) return reply({ error: "CHAT_COOLDOWN" }, 429);
+    const event = { id: crypto.randomUUID(), characterId:character.id, name:character.name, content, sentAt:nowIso };
+    const broadcast = await fetch(`${url}/realtime/v1/api/broadcast/world%3Aglobal/events/world_message?private=true`, {
+      method: "POST",
+      headers: { apikey:service, Authorization:`Bearer ${service}`, "Content-Type":"application/json" },
+      body: JSON.stringify(event),
+    });
+    if (!broadcast.ok) return reply({ error: "CHAT_BROADCAST_FAILED" }, 502);
+    return reply({ ok:true, messageId:event.id });
   }
 
   const requireGm = async () => (await getRole()) ? null : reply({ error: "GM_REQUIRED" }, 403);

@@ -111,6 +111,10 @@
         if (result.data && result.data.error) throw new Error(result.data.error);
         return result.data || {};
     }
+    // Other online-only UI features (for example Broadcast chat) must go
+    // through this authenticated gateway.  Do not expose the session token
+    // separately to feature scripts.
+    window.onlineCloudApi = gameApi;
     function sessionErrorCode(error) {
         return String(error && (error.message || error) || '');
     }
@@ -147,6 +151,7 @@
         if (cloudSync.kicking) return;
         cloudSync.kicking = true;
         stopCloudActivity();
+        if (typeof window.onlineWorldChatReset === 'function') window.onlineWorldChatReset();
         cloudSync.sessionToken = null;
         cloudSync.sessionUserId = null;
         var reason = /IP_ACCOUNT_LIMIT/i.test(String(error && (error.message || error) || ''))
@@ -191,6 +196,9 @@
                 cloudSync.sessionUserId = user.id;
                 cloudSync.locked = false;
                 removeSessionOverlay();
+                // World chat is an ephemeral Broadcast channel. Connect only
+                // after this browser has a server-issued game session token.
+                if (typeof window.onlineWorldChatConnect === 'function') window.onlineWorldChatConnect();
                 if (cloudSync.heartbeat) clearInterval(cloudSync.heartbeat);
                 cloudSync.heartbeat = setInterval(function () {
                     gameApi({ action:'session.heartbeat' }).catch(function (error) {
@@ -210,6 +218,7 @@
     window.onlineSessionLogout = async function () {
         const token = cloudSync.sessionToken;
         stopCloudActivity();
+        if (typeof window.onlineWorldChatReset === 'function') window.onlineWorldChatReset();
         // Closing a replaced token cannot affect the new token because the
         // server updates only the matching token row.
         try { if (client && token) await gameApi({ action:'session.close', sessionToken:token }); } catch (_) {}
