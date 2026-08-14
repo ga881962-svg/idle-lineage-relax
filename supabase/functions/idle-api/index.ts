@@ -27,14 +27,6 @@ function accountEmail(value: unknown) {
   const account = String(value ?? "").trim().toLowerCase();
   return /^[a-z0-9_]{3,20}$/.test(account) ? `${account}@players.idle-lineage.local` : null;
 }
-function requestIp(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for") || "";
-  return (request.headers.get("cf-connecting-ip") || forwarded.split(",")[0] || request.headers.get("x-real-ip") || "").trim();
-}
-async function hashText(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
 function inventoryCount(value: unknown) {
   return Array.isArray(value) ? value.reduce((sum, item) => sum + (isRecord(item) ? Math.max(0, Math.min(1000000, int(item.cnt))) : 0), 0) : 0;
 }
@@ -104,16 +96,10 @@ Deno.serve(async (request) => {
 
   if (input.action === "session.open") {
     if (!uuid(input.deviceId)) return reply({ error: "INVALID_DEVICE" }, 400);
-    const ip = requestIp(request);
-    const pepper = Deno.env.get("SESSION_IP_PEPPER") || service.slice(0, 24);
-    const ipHash = ip ? await hashText(`${pepper}:${ip}`) : null;
-    if (ipHash) {
-      const { data: lease } = await admin.from("game_ip_account_leases").select("user_id,last_seen_at").eq("ip_hash", ipHash).maybeSingle();
-      if (lease && lease.user_id !== user.id && Date.parse(String(lease.last_seen_at)) > Date.now() - 600000) return reply({ error: "IP_ACCOUNT_LIMIT" }, 429);
-      await admin.from("game_ip_account_leases").delete().eq("user_id", user.id);
-      const { error } = await admin.from("game_ip_account_leases").upsert({ ip_hash: ipHash, user_id: user.id, last_seen_at: nowIso }, { onConflict: "ip_hash" });
-      if (error) return reply({ error: "SESSION_LEASE_FAILED" }, 500);
-    }
+    // Do not limit a household/network to one account.  Exclusivity is per
+    // authenticated account only: this upsert atomically replaces only this
+    // user's game token and never blocks a different account on the same IP.
+    const ipHash = null;
     const sessionToken = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     // Upsert replaces the prior token atomically: the new device is immediately
@@ -130,7 +116,6 @@ Deno.serve(async (request) => {
       .is("invalidated_at", null)
       .select("user_id")
       .maybeSingle();
-    if (closed) await admin.from("game_ip_account_leases").delete().eq("user_id", user.id);
     return reply({ ok: true });
   }
 

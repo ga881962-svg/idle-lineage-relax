@@ -96,13 +96,12 @@
                 // `functions.invoke` exposes the status on the Response even
                 // when an intermediary strips its JSON body.
                 if (response && response.status === 409) throw new Error('SESSION_REPLACED');
-                if (response && response.status === 429) throw new Error('IP_ACCOUNT_LIMIT');
                 const body = response && typeof response.clone === 'function'
                     ? await response.clone().json()
                     : null;
                 if (body && body.error) throw new Error(String(body.error));
             } catch (detailError) {
-                if (/SESSION_ACTIVE_ELSEWHERE|SESSION_REPLACED|SESSION_REQUIRED|INVALID_SESSION|IP_ACCOUNT_LIMIT|SESSION_LEASE_FAILED|SESSION_OPEN_FAILED/i.test(sessionErrorCode(detailError))) {
+                if (/SESSION_REPLACED|SESSION_REQUIRED|INVALID_SESSION|SESSION_LEASE_FAILED|SESSION_OPEN_FAILED/i.test(sessionErrorCode(detailError))) {
                     throw detailError;
                 }
             }
@@ -119,7 +118,7 @@
         return String(error && (error.message || error) || '');
     }
     function isSessionError(error) {
-        return /SESSION_REPLACED|SESSION_REQUIRED|INVALID_SESSION|SESSION_EXPIRED|IP_ACCOUNT_LIMIT/i.test(sessionErrorCode(error));
+        return /SESSION_REPLACED|SESSION_REQUIRED|INVALID_SESSION|SESSION_EXPIRED/i.test(sessionErrorCode(error));
     }
     function removeSessionOverlay() {
         var old = document.getElementById('online-session-lock');
@@ -154,9 +153,7 @@
         if (typeof window.onlineWorldChatReset === 'function') window.onlineWorldChatReset();
         cloudSync.sessionToken = null;
         cloudSync.sessionUserId = null;
-        var reason = /IP_ACCOUNT_LIMIT/i.test(String(error && (error.message || error) || ''))
-            ? '此網路已有另一個帳號在線，請先讓另一帳號離線後再登入。'
-            : '此帳號已在另一台裝置登入，目前裝置已被登出。';
+        var reason = '此帳號已在另一台裝置登入，目前裝置已被登出。';
         // Use local sign-out only: a global Supabase sign-out would also
         // invalidate the new device's Auth session.
         try { if (client) await client.auth.signOut({ scope:'local' }); } catch (_) {}
@@ -164,7 +161,7 @@
         removeSessionOverlay();
         render(null);
         showModal();
-        message(/IP_ACCOUNT_LIMIT/i.test(String(error && (error.message || error) || '')) ? reason : '此帳號已在其他裝置登入', 'error');
+        message('此帳號已在其他裝置登入', 'error');
         cloudSync.kicking = false;
     }
     async function openGameSession(user) {

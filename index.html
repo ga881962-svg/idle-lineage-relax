@@ -662,7 +662,7 @@ window.refreshEquipmentWindow = function () {};
 <script src="js/36-offline-hunt.js?v=5-auto-revive-entry-gate"></script>
 <script src="js/37-profile-progress.js?v=2-direct-game-state"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/38-online-auth.js?v=34-exclusive-session"></script>
+  <script src="js/38-online-auth.js?v=35-direct-takeover"></script>
   <script src="js/40-online-world-chat.js?v=5-verified-broadcast"></script>
   <script src="js/41-player-exchange.js?v=9-quantity-unit-price"></script>
 <script>
@@ -835,7 +835,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
           const keys = await caches.keys();
           await Promise.all(keys.map(function (key) { return caches.delete(key); }));
         }
-        const registration = await navigator.serviceWorker.register('service-worker.js?v=29-session-diagnose', { updateViaCache: 'none' });
+    const registration = await navigator.serviceWorker.register('service-worker.js?v=30-direct-takeover', { updateViaCache: 'none' });
         await registration.update();
         navigator.serviceWorker.addEventListener('controllerchange', function () {
           if (!sessionStorage.getItem('live-assets-v26-reloaded')) {
