@@ -42,6 +42,24 @@
     if (/schema cache|Could not find the function/i.test(raw)) return '交易所正在更新，請稍後重新開啟。';
     return fallback || '交易所暫時無法使用，請稍後再試。';
   }
+  // 交易所診斷：僅在瀏覽器 Console 保留 RPC 原始錯誤，不顯示 session token 或角色資料。
+  function reportRpcError(rpc, error, phase) {
+    var diagnostic = {
+      rpc: rpc,
+      phase: phase || 'RPC response',
+      code: error && error.code != null ? error.code : null,
+      message: error && error.message ? error.message : String(error || ''),
+      details: error && (error.details != null ? error.details : (error.detail != null ? error.detail : null)),
+      hint: error && error.hint != null ? error.hint : null,
+      context: error && error.context != null ? error.context : null,
+      raw: error || null,
+      at: new Date().toISOString()
+    };
+    try {
+      window.__playerExchangeLastRpcError = diagnostic;
+      console.error('[玩家交易所診斷] RPC 失敗', diagnostic);
+    } catch (_) {}
+  }
   function inventory() { return owned() && Array.isArray(player.inv) ? player.inv.filter(function (i) { return i && i.id && i.uid; }) : []; }
   function selected() { var uid = document.getElementById('player-exchange-item')?.value; return inventory().find(function (item) { return item.uid === uid; }) || null; }
   function qtyValue() { return Math.max(1, Math.floor(Number(document.getElementById('player-exchange-qty')?.value) || 1)); }
@@ -66,7 +84,10 @@
     var result = await Promise.all(calls), wallet = result[0], listings = result[1];
     if (wallet.error) return note(errorText(wallet.error), true);
     document.getElementById('player-exchange-balance').textContent = money(wallet.data || 0);
-    if (listings.error) return note(errorText(listings.error), true);
+    if (listings.error) {
+      reportRpcError(view === 'mine' ? 'secure_market_mine' : 'secure_market_browse_v2', listings.error);
+      return note(errorText(listings.error), true);
+    }
     var host = document.getElementById('player-exchange-list'); if (!host) return;
     var rows = listings.data || [];
     host.innerHTML = rows.length ? rows.map(function (row) { return listingCard(row, view === 'mine'); }).join('') : '<div class="px-empty">' + (view === 'mine' ? '你目前沒有上架中的商品。' : '目前沒有玩家上架物品。') + '</div>';
@@ -75,7 +96,10 @@
     view = next;
     document.querySelectorAll('#' + PANEL_ID + ' .px-tab').forEach(function (button) { button.classList.toggle('is-active', button.dataset.view === next); });
     var form = document.getElementById('player-exchange-form'); if (form) form.hidden = next !== 'list';
-    note(''); updateForm(); load().catch(function (error) { note(errorText(error), true); });
+    note(''); updateForm(); load().catch(function (error) {
+      reportRpcError(next === 'mine' ? 'secure_market_mine' : 'secure_market_browse_v2', error, 'request exception');
+      note(errorText(error), true);
+    });
   }
   function createModal() {
     var style = document.createElement('style'); style.id = 'player-exchange-style';
