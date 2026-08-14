@@ -1,6 +1,6 @@
 // Online game: never cache game files. This worker exists only for PWA installation.
 // Activating a new version erases every cache left by older builds.
-const CACHE_NAME = 'idle-lineage-relax-live-v30-direct-takeover';
+const CACHE_NAME = 'idle-lineage-relax-live-v31-kick-to-login';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());

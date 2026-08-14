@@ -137,6 +137,46 @@
           + '</section>';
         document.body.appendChild(overlay);
     }
+    function loginModalMarkup() {
+        return '<div class="online-auth-dialog" role="dialog" aria-modal="true" aria-label="線上帳號">'
+          + '<button type="button" class="online-auth-close" onclick="onlineAuthClose()">×</button>'
+          + '<h2>放置天堂－休閒養老</h2><p>建立帳號後，未來可在網頁與 Windows 安裝版共用角色。</p>'
+          + '<label>帳號<input id="online-auth-account" type="text" autocomplete="username" maxlength="20" placeholder="3～20 碼英文小寫、數字或 _"></label>'
+          + '<label>密碼<input id="online-auth-password" type="password" minlength="8" autocomplete="current-password" placeholder="至少 8 碼"></label>'
+          + '<div class="online-auth-actions"><button type="button" onclick="onlineAuthEmail(false)">登入</button><button type="button" class="secondary" onclick="onlineAuthEmail(true)">註冊</button></div>'
+          + '<p class="online-auth-note">新玩家只需帳號與密碼，不使用 Email 驗證。舊玩家仍可用原本 Email 登入。</p>'
+          + '<div id="online-auth-message" class="online-auth-message" aria-live="polite"></div>'
+          + '</div>';
+    }
+    function resetToSignedOutShell() {
+        // This is deliberately separate from returnToCharacterSelect(): that
+        // path saves the current role and keeps the authenticated roster open.
+        // A replaced session must never perform either action.
+        cloudSync.characterId = null;
+        cloudSync.revision = 0;
+        cloudSync.ready = false;
+        cloudSync.warned = false;
+        try { if (typeof state !== 'undefined' && state) state.running = false; } catch (_) {}
+        try { if (typeof player !== 'undefined') player = null; } catch (_) {}
+        ['game-screen', 'load-select-panel', 'creation-panel'].forEach(function (id) {
+            var element = document.getElementById(id);
+            if (element) element.classList.add('hidden');
+        });
+        var creationScreen = document.getElementById('creation-screen');
+        var mainMenu = document.getElementById('main-menu');
+        if (creationScreen) creationScreen.classList.remove('hidden');
+        if (mainMenu) mainMenu.classList.remove('hidden');
+        document.querySelectorAll('[id$="-modal"], [id^="modal-"]').forEach(function (element) {
+            if (element.id !== 'online-auth-modal') element.classList.add('hidden');
+        });
+        document.body.classList.remove('game-bg-dim', 'sherine-world', 'sherine-mad');
+        var modal = document.getElementById('online-auth-modal');
+        if (modal) {
+            modal.innerHTML = loginModalMarkup();
+            modal.classList.remove('hidden');
+        }
+        render(null);
+    }
     function stopCloudActivity() {
         cloudSync.locked = true;
         if (cloudSync.timer) { clearTimeout(cloudSync.timer); cloudSync.timer = null; }
@@ -159,8 +199,7 @@
         try { if (client) await client.auth.signOut({ scope:'local' }); } catch (_) {}
         activeUser = null;
         removeSessionOverlay();
-        render(null);
-        showModal();
+        resetToSignedOutShell();
         message('此帳號已在其他裝置登入', 'error');
         cloudSync.kicking = false;
     }
@@ -224,8 +263,7 @@
         cloudSync.sessionToken = null;
         cloudSync.sessionUserId = null;
         removeSessionOverlay();
-        render(null);
-        showModal();
+        resetToSignedOutShell();
     };
     function applyCloudGmAccess(allowed) {
         const toggle = document.getElementById('gm-toggle');
@@ -596,8 +634,13 @@
         return data;
     };
     window.onlineAuthSignOut = async function () {
+        stopCloudActivity();
+        if (typeof window.onlineWorldChatReset === 'function') window.onlineWorldChatReset();
         if (client) await client.auth.signOut();
-        render(null);
+        activeUser = null;
+        cloudSync.sessionToken = null;
+        cloudSync.sessionUserId = null;
+        resetToSignedOutShell();
     };
     window.onlineSupabase = function () { return client; };
     // Server-side marketplace actions advance the checkpoint revision too.
@@ -618,15 +661,7 @@
         if (!root) { root = document.createElement('div'); root.id = 'online-auth-root'; document.body.appendChild(root); }
         const modal = document.createElement('div');
         modal.id = 'online-auth-modal'; modal.className = 'online-auth-modal hidden';
-        modal.innerHTML = '<div class="online-auth-dialog" role="dialog" aria-modal="true" aria-label="線上帳號">'
-          + '<button type="button" class="online-auth-close" onclick="onlineAuthClose()">×</button>'
-          + '<h2>放置天堂－休閒養老</h2><p>建立帳號後，未來可在網頁與 Windows 安裝版共用角色。</p>'
-          + '<label>帳號<input id="online-auth-account" type="text" autocomplete="username" maxlength="20" placeholder="3～20 碼英文小寫、數字或 _"></label>'
-          + '<label>密碼<input id="online-auth-password" type="password" minlength="8" autocomplete="current-password" placeholder="至少 8 碼"></label>'
-          + '<div class="online-auth-actions"><button type="button" onclick="onlineAuthEmail(false)">登入</button><button type="button" class="secondary" onclick="onlineAuthEmail(true)">註冊</button></div>'
-          + '<p class="online-auth-note">新玩家只需帳號與密碼，不使用 Email 驗證。舊玩家仍可用原本 Email 登入。</p>'
-          + '<div id="online-auth-message" class="online-auth-message" aria-live="polite"></div>'
-          + '</div>';
+        modal.innerHTML = loginModalMarkup();
         document.body.appendChild(modal);
         // 公開網址首次開啟時，getUser() 可能因網路或瀏覽器隱私設定延遲。
         // 先畫出登入入口，避免首頁空白到使用者以為不能開始遊戲。
