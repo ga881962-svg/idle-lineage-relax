@@ -4062,3 +4062,126 @@ button.classic-skill-cell { cursor:pointer; }
 .online-session-takeover { border:1px solid #ffdf21; background:linear-gradient(180deg,#ffe41d,#ffc400); color:#18203b; }
 .online-session-logout { border:1px solid #53647f; background:#1d2a43; color:#d9e5f6; }
 .online-session-lock button:disabled { opacity:.62; cursor:wait; }
+
+/*
+ * Adventure-map visual normalization.
+ * These rules only change painted sprite/background dimensions.  They do not
+ * affect entity coordinates, hit areas, movement, combat ranges, or VFX
+ * anchors.  Keeping the hero inside a fixed canvas prevents each class PNG's
+ * intrinsic pixel dimensions from determining its on-screen size.
+ */
+#battle-view.area-fit {
+  --battle-background-zoom: 108%;
+  --player-visual-width: 178px;
+  --player-visual-height: 166px;
+  --player-fallback-height: 128px;
+  --pet-visual-height: 46px;
+}
+
+#battle-view.area-fit.has-bg {
+  /* applyAreaBackground writes an inline `cover, cover, cover`; this must win
+     over it while remaining limited to the hunting-map visual only. */
+  background-size: var(--battle-background-zoom) auto !important;
+}
+
+/* Player art: one fixed visual canvas for every class, aspect ratio retained. */
+#battle-view.area-fit #player-morph-sprite.player-static-guard,
+#battle-view.area-fit #player-morph-sprite.player-static-guard .pm-battle-hero-art {
+  width: var(--player-visual-width) !important;
+  height: var(--player-visual-height) !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
+#battle-view.area-fit #player-morph-sprite.player-static-guard .pm-static-body {
+  height: var(--player-fallback-height) !important;
+  width: auto !important;
+  max-width: 96px !important;
+}
+
+/* Pet PNGs have inconsistent native dimensions; normalize their visual height. */
+#battle-view.area-fit #pet-layer [data-pet] .pet-body,
+#battle-view.area-fit #pet-layer [data-pet] .pet-shadow {
+  display: block;
+  width: auto !important;
+  height: var(--pet-visual-height) !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+/*
+ * Do not transform #player-morph-sprite itself.  Combat/VFX code anchors
+ * effects to its bounding box, so player art gets a smaller canvas while
+ * effects keep their own original visual scale.
+ */
+
+@media (max-width:700px) {
+  #battle-view.area-fit {
+    --battle-background-zoom: 112%;
+    --player-visual-width: 124px;
+    --player-visual-height: 120px;
+    --player-fallback-height: 94px;
+    --pet-visual-height: 34px;
+  }
+
+  /* Overrides the earlier mobile battle layout without changing its anchors. */
+  #game-screen[data-mobile-page="battle"] #battle-view.area-fit #player-morph-sprite.player-static-guard,
+  #game-screen[data-mobile-page="battle"] #battle-view.area-fit #player-morph-sprite.player-static-guard .pm-battle-hero-art {
+    width: var(--player-visual-width) !important;
+    height: var(--player-visual-height) !important;
+  }
+
+  /* Mobile battle controls: keep Exchange beside the drop guide instead of
+     allowing the dynamically inserted button to create a third header row. */
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header {
+    grid-template-columns:64px minmax(0,1fr) minmax(0,1fr) 76px !important;
+    grid-template-rows:32px 32px !important;
+    gap:4px !important;
+    min-height:72px !important;
+  }
+  #game-screen[data-mobile-page="battle"] #btn-teleport {
+    grid-column:1 !important;
+    grid-row:1 !important;
+  }
+  #game-screen[data-mobile-page="battle"] #btn-return-town {
+    grid-column:1 !important;
+    grid-row:2 !important;
+  }
+  #game-screen[data-mobile-page="battle"] #map-category {
+    grid-column:2 !important;
+    grid-row:1 / span 2 !important;
+  }
+  #game-screen[data-mobile-page="battle"] #map-select {
+    grid-column:3 !important;
+    grid-row:1 / span 2 !important;
+  }
+  #game-screen[data-mobile-page="battle"] #btn-player-exchange {
+    grid-column:4 !important;
+    grid-row:1 !important;
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    min-height:32px !important;
+    margin:0 !important;
+    padding:3px 5px !important;
+    font-size:12px !important;
+    white-space:nowrap !important;
+  }
+  #game-screen[data-mobile-page="battle"] #btn-map-drops {
+    grid-column:4 !important;
+    grid-row:2 !important;
+    min-height:32px !important;
+    margin:0 !important;
+    padding:3px 5px !important;
+    font-size:12px !important;
+    white-space:nowrap !important;
+  }
+
+  /* More usable map height on narrow screens.  This changes only the visual
+     viewport, not the world coordinate system. */
+  #game-screen[data-mobile-page="battle"] #battle-view.area-fit:not(.hidden) {
+    min-height:clamp(280px,78vw,390px) !important;
+  }
+}
