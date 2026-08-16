@@ -97,8 +97,6 @@ function gainItem(id, cnt=1, silent=false, forceNormal=false, affixOld=false, de
         d = DB.items[id];
     }
 
-    // 🗡️ 裝備收集冊：獲得任何武器/防具/飾品(非箭矢)即登錄圖鑑（永久·只增不減）
-    if (typeof registerEquipObtained === 'function') registerEquipObtained(id);
     // 🧰 道具收集冊：獲得任何可分類道具即登錄（藥水/卷軸/技能書/材料/其他）
     if (typeof registerMiscObtained === 'function') registerMiscObtained(id);
     // 🏺 遺物收集冊：獲得任何遺物即登錄（獨立圖鑑）
@@ -151,6 +149,10 @@ function gainItem(id, cnt=1, silent=false, forceNormal=false, affixOld=false, de
         : player.inv.find(i => !i.gw && (!_lockMergeOff || !i.lock) && sameItemSig(i, _probe)));   // 🔧 架構#3：統一簽章比對（itemSig 已含 en→+0 只併 +0、+3 只併 +3，永不誤併不同強化值）；⚠️ 巨靈願望戒指(gw)每只獨立·簽章不含 gw 故顯式排除
     if(ex) ex.cnt += cnt;   // 僅加數量、不更動既有堆疊的廢品狀態
     else { let _push = { id: id, uid: uid(), cnt: cnt, en: _tEn, bless: bless, anc: anc, attr: attr, seteff: seteff, lock: false, junk: !!(player.junkPrefs && player.junkPrefs[itemSig(_probe)]) && !(d && d.noJunk) }; if (_gw) _push.gw = _gw; player.inv.push(_push); if (_fastGainIndex) _rememberCatchupGainItemStack(_push); }   // 🔧 廢品記憶改以完整簽章比對：詞綴物品也可自動標記，但僅限「完全相同詞綴」者；🎴 noJunk(收集冊)永不自動標記
+
+    // Register only after the item was actually added/merged. maxHold
+    // rejection must never unlock an item that did not enter this character.
+    if (typeof registerEquipObtained === 'function') registerEquipObtained(id);
 
     // 紀錄這次產生的物品屬性
     let itemInfo = { id: id, cnt: cnt, en: _tEn, bless: bless, anc: anc, attr: attr, seteff: seteff };

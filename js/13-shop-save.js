@@ -1352,9 +1352,9 @@ function startGame() {
             gainItem('bk_lightarrow', 1, true, true); // 光箭魔法書
         }
     }
-    if (typeof loadSharedCollections === 'function') loadSharedCollections();   // 🎴🗡️🧰 創角：載入同模式共用收集圖鑑（新角色即承接同模式既有收集）
+    if (typeof loadSharedCollections === 'function') loadSharedCollections();   // 🎴🧰🏺 shared books only; equipment collection remains character-local
     if (typeof ensureCardBook === 'function') ensureCardBook();   // 🎴 怪物收集冊改由「收藏」面板開啟（移除道具欄本體）
-    if (typeof ensureEquipBook === 'function') ensureEquipBook();   // 🗡️ 裝備收集冊改由「收藏」面板開啟＋登錄起始裝備
+    if (typeof ensureEquipBook === 'function') ensureEquipBook();   // 🗡️ initialise an empty per-character collection
     if (typeof ensureMiscDex === 'function') ensureMiscDex();   // 🧰 道具收集冊：登錄起始道具
     if (typeof ensureRelicDex === 'function') ensureRelicDex();   // 🏺 遺物收集冊：登錄起始遺物
 
@@ -1866,9 +1866,9 @@ function loadGame() {
             player.mercLedgerOutbox = [];
             try { _mercLedgerFlush(); } catch (e) {}
         }
-        if (typeof loadSharedCollections === 'function') loadSharedCollections();   // 🎴🗡️ 讀檔：載入同模式共用收集圖鑑（卡片/裝備·併入該角色既有資料）
+        if (typeof loadSharedCollections === 'function') loadSharedCollections();   // 🎴🧰🏺 shared books only; equipment collection is not merged
         if (typeof ensureCardBook === 'function') ensureCardBook();   // 🎴 舊存檔遷移：移除道具欄的卡片收集冊本體（改由「收藏」面板開啟）
-        if (typeof ensureEquipBook === 'function') ensureEquipBook(_loadWarehouseReady ? _loadWarehouse : undefined);   // 🗡️ 舊存檔遷移：移除裝備收集冊本體＋登錄現有(背包/已裝備)裝備
+        if (typeof ensureEquipBook === 'function') ensureEquipBook();   // 🗡️ normalize collection state; never infer it from current possessions
         if (typeof ensureMiscDex === 'function') ensureMiscDex(_loadWarehouseReady ? _loadWarehouse : undefined);   // 🧰 舊存檔遷移：登錄現有道具到道具收集冊
         if (typeof ensureRelicDex === 'function') ensureRelicDex(_loadWarehouseReady ? _loadWarehouse : undefined);   // 🏺 舊存檔遷移：登錄現有遺物到遺物收集冊
 

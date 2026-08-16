@@ -176,25 +176,38 @@ function equipCollectionBonus(p, d) {
         }
     }
 }
-function registerEquipObtained(id) {   // gainItem 呼叫：獲得任何裝備即登錄
-    if (!player) return;
-    if (!player.equipDex) player.equipDex = {};
-    if (EQUIP_ITEM_CAT[id] && !player.equipDex[id]) { player.equipDex[id] = true; if (typeof saveEquipDex === 'function') saveEquipDex(); }   // 🗡️ 僅「首次」登錄才回寫共用桶（避免每次拾取都寫 localStorage）
+// Collection belongs to the individual character state.  It records a base
+// equipment ID once, regardless of uid, enchant, blessing, element or options.
+function registerEquipObtainedInState(state, id) {
+    if (!state || !state.p || !EQUIP_ITEM_CAT[id]) return false;
+    if (!state.p.equipDex || typeof state.p.equipDex !== 'object') state.p.equipDex = {};
+    if (state.p.equipDex[id]) return false;
+    state.p.equipDex[id] = true;
+    return true;
 }
+function registerEquipObtained(id) {
+    if (!player || !EQUIP_ITEM_CAT[id]) return false;
+    if (!player.equipDex || typeof player.equipDex !== 'object') player.equipDex = {};
+    if (player.equipDex[id]) return false;
+    player.equipDex[id] = true;
+    // Character saving/checkpoint sync persists player.equipDex.  Do not use
+    // the historical shared EQUIPDEX localStorage bucket as an authority.
+    if (typeof saveEquipDex === 'function') saveEquipDex();
+    return true;
+}
+if (typeof window !== 'undefined') window.registerEquipObtainedInState = registerEquipObtainedInState;
 
-// ---- 創角/讀檔保底：確保有一本收集冊，並把現有(背包+已裝備)裝備補登錄（舊存檔遷移）----
-function ensureEquipBook(warehouse) {
+// ---- Character-state normalization only.  Possession/catalogue scans must
+// never be treated as historical acquisition. ----
+function ensureEquipBook() {
     if (!player || !Array.isArray(player.inv)) return;
     let changed = false;
     if (!player.equipDex) { player.equipDex = {}; changed = true; }
     // 🗡️ 裝備收集冊改由「收藏」面板開啟→不再放在道具欄；移除舊存檔殘留的收集冊本體（資料在 player.equipDex·與本體無關）
     if (player.inv.some(i => i.id === 'item_equip_book')) { player.inv = player.inv.filter(i => i.id !== 'item_equip_book'); changed = true; }
-    let register = i => { if (i && i.id && EQUIP_ITEM_CAT[i.id] && !player.equipDex[i.id]) { player.equipDex[i.id] = true; changed = true; } };
-    player.inv.forEach(register);
-    if (player.eq) for (let s in player.eq) register(player.eq[s]);
-    // 🏛️ v3.0.61 倉庫庫存也補登錄（唯讀當前模式倉庫桶）：收集冊上線前入倉的裝備從未經 gainItem 登錄→圖鑑全暗（傳統模式裝備自帶強化、常整批入倉最易踩到）；讀檔時一併點亮
-    try { let _w = warehouse || (typeof loadWarehouse === 'function' ? loadWarehouse() : null); if (_w && Array.isArray(_w.items)) _w.items.forEach(register); } catch (e) {}
-    if (changed && typeof saveEquipDex === 'function') saveEquipDex();   // 🗡️ 僅首次補登錄才回寫共用桶，避免每次載入重複序列化完整圖鑑
+    // Do not backfill from inventory, equipped slots or warehouse.  Doing so
+    // made starter/catalogue equipment look collected on a new character.
+    if (changed && typeof saveEquipDex === 'function') saveEquipDex();
 }
 
 // ===== 全螢幕書頁 UI =====
@@ -202,7 +215,6 @@ let _equipBookOpen = false;
 let _equipBookCat = EQUIP_CATEGORIES[0].key;
 function openEquipBook() {
     if (!player.equipDex) player.equipDex = {};
-    if (typeof mergeSharedIntoPlayer === 'function' && mergeSharedIntoPlayer('equip') && typeof calcStats === 'function') calcStats();   // 🔄 多開兜底：開書前先併入其他分頁的裝備進度。⚠️ 裝備冊「有」加成（EQUIP_CAT_BONUS 28 筆經 equipCollectionBonus 套 HP/MP/dr/mr/AC/負重…），合併後必須重算，否則 UI 立刻顯示「（已啟用）」但衍生值要等下次 calcStats 才生效（比照 js/15 openCardBook）
     if (typeof closeModal === 'function') closeModal();   // 先關物品操作彈窗(z-50)，避免書頁(z-45)開在後方
     _equipBookOpen = true;
     let el = document.getElementById('equip-book'); if (!el) return;

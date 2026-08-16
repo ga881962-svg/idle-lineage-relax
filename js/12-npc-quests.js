@@ -235,12 +235,10 @@ function saveCardDex(){
     } catch(e){}
 }
 function saveEquipDex(){
-    if (!player || !player.equipDex) return;
-    try {
-        let out = Object.assign({}, _readDex(EQUIPDEX_KEY));   // 桶現值（其他分頁可能剛寫入）
-        for (let k in player.equipDex) if (player.equipDex[k]) out[k] = true;   // 布林聯集（只增不減）
-        _lzSet(_dexKey(EQUIPDEX_KEY), JSON.stringify(out));
-    } catch(e){}
+    // equipDex is persisted in the character save/checkpoint.  The old
+    // same-mode localStorage bucket is intentionally no longer written or
+    // read, because it leaked one character's collection into another.
+    return !!(player && player.equipDex);
 }
 function saveMiscDex(){   // 🧰 道具收集冊：布林聯集回寫共用桶（同 saveEquipDex）
     if (!player || !player.miscDex) return;
@@ -309,7 +307,7 @@ if (typeof window !== 'undefined' && window.addEventListener) window.addEventLis
 // 讀檔／創角時呼叫：把共用桶併進 player.cardDex/equipDex（卡片取較高分·裝備取聯集·只增不減），並回寫共用桶（種子化＋遷移舊存檔 per-character 資料·不丟失）
 function loadSharedCollections(){
     if (!player) return;
-    let shRaw = _readDex(CARDDEX_KEY), shEquip = _readDex(EQUIPDEX_KEY), shMisc = _readDex(MISCDEX_KEY), shRelic = _readDex(RELICDEX_KEY);
+    let shRaw = _readDex(CARDDEX_KEY), shMisc = _readDex(MISCDEX_KEY), shRelic = _readDex(RELICDEX_KEY);
     // 🎴 卡片積分制遷移（一次性）：舊階級(1/2/3)→積分(1/10/100)。共用桶以 _v 標記、玩家存檔以 cardDexV 標記。
     let _mig = (typeof cardTierToScore === 'function') ? cardTierToScore : function(v){ return v || 0; };
     let _bucketOld = (shRaw && shRaw._v !== 2);
@@ -319,7 +317,9 @@ function loadSharedCollections(){
     let mC = Object.assign({}, shCard), pc = player.cardDex || {};
     for (let k in pc) if ((pc[k] || 0) > (mC[k] || 0)) mC[k] = pc[k];   // 🎴 卡片：取較高分（只增不減）
     player.cardDex = mC;
-    player.equipDex = Object.assign({}, shEquip, player.equipDex || {});   // 🗡️ 裝備：布林聯集
+    // 🗡️ Equipment collection is strictly character-local.  Do not import
+    // historical EQUIPDEX shared storage into this character.
+    if (!player.equipDex || typeof player.equipDex !== 'object') player.equipDex = {};
     player.miscDex = Object.assign({}, shMisc, player.miscDex || {});      // 🧰 道具：布林聯集
     player.relicDex = Object.assign({}, shRelic, player.relicDex || {});   // 🏺 遺物：布林聯集
     saveCardDex(); saveEquipDex(); saveMiscDex(); saveRelicDex();
@@ -334,11 +334,7 @@ function mergeSharedIntoPlayer(which){
         let _mig = (typeof cardTierToScore === 'function') ? cardTierToScore : function(v){ return v || 0; };
         for (let k in cur) { if (k === '_v') continue; let v = _old ? _mig(cur[k]) : (cur[k] || 0); if (v > (player.cardDex[k] || 0)) { player.cardDex[k] = v; changed = true; } }
     }
-    if (which !== 'card' && which !== 'misc' && which !== 'relic') {
-        if (!player.equipDex) player.equipDex = {};
-        let cur = _readDex(EQUIPDEX_KEY);
-        for (let k in cur) if (cur[k] && !player.equipDex[k]) { player.equipDex[k] = true; changed = true; }
-    }
+    // Equipment progress is not shared between characters or browser tabs.
     if (which !== 'card' && which !== 'equip' && which !== 'relic') {   // 🧰 道具：'misc' 或 undefined(全併) 時併入
         if (!player.miscDex) player.miscDex = {};
         let cur = _readDex(MISCDEX_KEY);
@@ -363,9 +359,9 @@ function _refreshAfterDexSync(){
 //  ⚠️ file:// 跨分頁不保證觸發 storage 事件→另在 openCardBook/openEquipBook 開頭 re-merge 作兜底。
 function _syncSharedFromStorage(ev){
     if (!ev || !player || !player.cls) return;   // player 在標題/載入畫面是 cls:null 的 stub（js/01 createBase 前）→尚未開始遊戲，不對空 player 跑 merge/recompute/render
-    let ck = _dexKey(CARDDEX_KEY), ek = _dexKey(EQUIPDEX_KEY), mk = _dexKey(MISCDEX_KEY), rk = _dexKey(RELICDEX_KEY);
-    if (ev.key !== ck && ev.key !== ek && ev.key !== mk && ev.key !== rk) return;
-    if (mergeSharedIntoPlayer(ev.key === ck ? 'card' : (ev.key === ek ? 'equip' : (ev.key === rk ? 'relic' : 'misc')))) _refreshAfterDexSync();
+    let ck = _dexKey(CARDDEX_KEY), mk = _dexKey(MISCDEX_KEY), rk = _dexKey(RELICDEX_KEY);
+    if (ev.key !== ck && ev.key !== mk && ev.key !== rk) return;
+    if (mergeSharedIntoPlayer(ev.key === ck ? 'card' : (ev.key === rk ? 'relic' : 'misc'))) _refreshAfterDexSync();
 }
 if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('storage', _syncSharedFromStorage);
 // 🔧 架構#3：統一簽章比對。
