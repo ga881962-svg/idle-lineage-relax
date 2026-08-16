@@ -266,25 +266,29 @@ const EXP_REQ_CLASSIC_V2 = [0,
     27755758602, 35693905562, 45938056458, 59168216718, 76267831350, 98385502442, 127015683653, 164104263280, 212186812421, 274569735273,
     355567807179, 460815878104, 597678193901, 775786295683, 1007746398092, 1310070317520, 1703091412776, 2214018836609, 2878224487592, 3741691833870
 ];
-const EXP_REQ_LV69_KILLS = Math.ceil(EXP_REQ_CLASSIC_V2[69] / (69 * 69 + 1));   // 385,717
+const PLAYER_LEVEL_CAP = 75;
+const HIGH_LEVEL_EXP_BASE = EXP_REQ_CLASSIC_V2[50];
+const HIGH_LEVEL_EXP_GROWTH = 1.07;
+const EXP_REQ_LV69_KILLS = Math.ceil(EXP_REQ_CLASSIC_V2[69] / (69 * 69 + 1));
 const EXP_REQ_CLASSIC = EXP_REQ_CLASSIC_V2.map((req, lv) =>
     (lv >= 70 && lv < 100) ? (lv * lv + 1) * EXP_REQ_LV69_KILLS : req
 );   // index＝等級；Lv99→100＝3,780,798,034（約 38 億，不再是 3.74 兆）
 function _expReqClassicV2(lv) {   // v3.4.58 以前的經典表；僅供 expMigV=3 百分比遷移
-    if (lv >= 100) return Infinity;
+    if (lv >= PLAYER_LEVEL_CAP) return Infinity;
     return EXP_REQ_CLASSIC_V2[lv] || Infinity;
 }
 // Lv50 起改為較休閒的養成曲線：每級需求減少三分之一（保留原需求的 2/3）。
 // 低於 Lv50 與 Lv100 滿等規則完全不變；寵物與傭兵也會透過 getExpReq 自動套用同一曲線。
 const HIGH_LEVEL_EXP_REQ_MULTIPLIER = 2 / 3;
 function getExpReq(lv) {
-    if (lv >= 100) return Infinity;
-    const base = EXP_REQ_CLASSIC[lv] || Infinity;
-    return lv >= 50 ? Math.max(1, Math.floor(base * HIGH_LEVEL_EXP_REQ_MULTIPLIER)) : base;
+    lv = Math.max(1, Math.floor(Number(lv) || 1));
+    if (lv >= PLAYER_LEVEL_CAP) return Infinity;
+    if (lv < 50) return EXP_REQ_CLASSIC_V2[lv] || Infinity;
+    return Math.max(1, Math.floor(HIGH_LEVEL_EXP_BASE * Math.pow(HIGH_LEVEL_EXP_GROWTH, lv - 50)));
 }
 // 舊制需求（v2.6.40 分段放大制·僅供 js/13 expMigV=2 一次性遷移換算，勿用於遊戲邏輯）
 function _expReqOldV1(lv) {
-    if (lv >= 100) return Infinity;
+    if (lv >= PLAYER_LEVEL_CAP) return Infinity;
     if (lv >= 90)  return 36930654208;
     if (lv >= 87)  return 18465327104;
     if (lv >= 86)  return 9232663552;
@@ -300,6 +304,8 @@ function _expReqOldV1(lv) {
 }
 function getExpGainMult(lv) { return lv >= 100 ? 0 : (typeof sponsorGetMultiplier === 'function' ? sponsorGetMultiplier('exp') : 1); }   // 贊助經驗加倍與既有經驗機制相乘；滿等仍不獲得經驗。
 
+// Online progression cap: max-level characters receive no further EXP.
+function getExpGainMult(lv) { return lv >= PLAYER_LEVEL_CAP ? 0 : (typeof sponsorGetMultiplier === 'function' ? sponsorGetMultiplier('exp') : 1); }
 const DB = {
         items: {
         "wpn_alien": { n: "亞連", type: "wpn", dmgS: 4, dmgL: 4, hit: 2, spd: 1.1, req: "all", safe: 6, p: 14, gachaWeight: 100 },

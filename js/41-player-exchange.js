@@ -13,6 +13,13 @@
   function requestId() { return typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()); }
   function revision(value) { if (typeof window.onlineCloudCheckpointRevision === 'function') window.onlineCloudCheckpointRevision(value); }
   function refreshLocal() { try { if (typeof updateUI === 'function') updateUI(); } catch (_) {} try { if (typeof saveGame === 'function') saveGame(); } catch (_) {} }
+  function applyCanonical(result) {
+    if (!result || !result.state || !result.state.p || typeof player === 'undefined' || !player) throw new Error('MARKET_CANONICAL_STATE_MISSING');
+    Object.keys(player).forEach(function (key) { delete player[key]; });
+    Object.assign(player, result.state.p);
+    revision(result.revision);
+    refreshLocal();
+  }
   function parseItem(value) { if (typeof value === 'string') { try { return JSON.parse(value); } catch (_) { return { id:value }; } } return value || {}; }
   function count(item) { item = parseItem(item); return Math.max(1, Math.floor(Number(item.cnt != null ? item.cnt : item.count) || 1)); }
   function itemName(item) {
@@ -41,6 +48,14 @@
     if (/SESSION_REPLACED|SESSION_REQUIRED|SESSION_EXPIRED/i.test(raw)) return '安全連線已失效，請重新登入。';
     if (/schema cache|Could not find the function/i.test(raw)) return '交易所正在更新，請稍後重新開啟。';
     return fallback || '交易所暫時無法使用，請稍後再試。';
+  }
+  async function handleActionError(error) {
+    if (/CHECKPOINT_CONFLICT/i.test(String(error && (error.message || error)))) {
+      if (typeof window.onlineCloudRestoreCheckpoint === 'function') await window.onlineCloudRestoreCheckpoint();
+      note('角色資料已由伺服器重新載入，請重新操作。', true);
+      return true;
+    }
+    return false;
   }
   // 交易所診斷：僅在瀏覽器 Console 保留 RPC 原始錯誤，不顯示 session token 或角色資料。
   function reportRpcError(rpc, error, phase) {
@@ -79,6 +94,11 @@
   async function load() {
     var c = client(); if (!c || !owned()) return note('請先登入並進入角色存檔，才能使用交易所。', true);
     if (!token()) return note('安全連線尚未建立，請重新登入。', true);
+    // Expiry reclaim is a canonical, ledgered write action.  It is never
+    // hidden inside a browse RPC (which used to call a legacy writer).
+    var reclaim = await c.rpc('secure_market_reclaim', { p_session_token:token(), p_character_id:player.cloudCharacterId, p_request_id:requestId() });
+    if (reclaim.error) { if (!await handleActionError(reclaim.error)) note(errorText(reclaim.error), true); return; }
+    if (reclaim.data && Number(reclaim.data.reclaimed || 0) > 0) applyCanonical(reclaim.data);
     var calls = [c.rpc('secure_market_wallet', { p_session_token:token() })];
     calls.push(view === 'mine' ? c.rpc('secure_market_mine', { p_session_token:token(), p_character_id:player.cloudCharacterId }) : c.rpc('secure_market_browse_v2', { p_session_token:token(), p_character_id:player.cloudCharacterId }));
     var result = await Promise.all(calls), wallet = result[0], listings = result[1];
@@ -123,25 +143,21 @@
     if (Number(player.gold || 0) < LISTING_FEE) return note('金幣不足；每次上架需要 100,000 金幣。', true);
     if (!token()) return note('安全連線尚未建立，請重新登入。', true);
     var result = await c.rpc('secure_market_list', { p_session_token:token(), p_character_id:player.cloudCharacterId, p_item_uid:item.uid, p_quantity:quantity, p_unit_price:price, p_request_id:requestId() });
-    if (result.error) return note(errorText(result.error), true);
-    if (quantity >= count(item)) player.inv = player.inv.filter(function (entry) { return entry.uid !== item.uid; });
-    else if (item.cnt != null) item.cnt = count(item) - quantity; else if (item.count != null) item.count = count(item) - quantity; else return note('上架成功；請重新讀取背包確認物品數量。');
-    player.gold = Math.max(0, Number(player.gold || 0) - LISTING_FEE); revision(result.data && result.data.revision); refreshLocal(); note('上架成功：已扣除 100,000 金幣，7 天內未售出會自動退回背包。'); setView('mine');
+    if (result.error) { if (!await handleActionError(result.error)) note(errorText(result.error), true); return; }
+    applyCanonical(result.data); note('上架成功：已扣除 100,000 金幣，7 天內未售出會自動退回背包。'); setView('mine');
   }
   async function buy(id) {
     if (!confirm('確定以贊助鑽石整包購買這張訂單嗎？')) return;
     var c = client(); if (!c || !owned() || !token()) return note('安全連線尚未建立，請重新登入。', true);
     var result = await c.rpc('secure_market_buy', { p_session_token:token(), p_character_id:player.cloudCharacterId, p_listing_id:id, p_request_id:requestId() });
-    if (result.error) return note(errorText(result.error), true);
-    if (result.data && result.data.item) { player.inv = player.inv || []; player.inv.push(result.data.item); }
-    revision(result.data && result.data.revision); refreshLocal(); note('購買成功，物品已放入背包。'); load();
+    if (result.error) { if (!await handleActionError(result.error)) note(errorText(result.error), true); return; }
+    applyCanonical(result.data); note('購買成功，物品已放入背包。'); load();
   }
   async function cancel(id) {
     var c = client(); if (!c || !owned() || !token()) return note('安全連線尚未建立，請重新登入。', true);
     var result = await c.rpc('secure_market_cancel', { p_session_token:token(), p_character_id:player.cloudCharacterId, p_listing_id:id, p_request_id:requestId() });
-    if (result.error) return note(errorText(result.error), true);
-    if (result.data && result.data.item) { player.inv = player.inv || []; player.inv.push(result.data.item); }
-    revision(result.data && result.data.revision); refreshLocal(); note('已取消上架，物品已退回背包。'); load();
+    if (result.error) { if (!await handleActionError(result.error)) note(errorText(result.error), true); return; }
+    applyCanonical(result.data); note('已取消上架，物品已退回背包。'); load();
   }
   window.openPlayerExchange = show;
   window.closePlayerExchange = function () { if (modal) modal.classList.add('hidden'); };

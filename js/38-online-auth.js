@@ -297,13 +297,26 @@
             const state = JSON.parse(saveStateJson());
             const data = await gameApi({ action:'checkpoint.write', characterId:cloudSync.characterId, revision:cloudSync.revision, requestId:newUuid(), state:state });
             cloudSync.revision = Number(data.revision || cloudSync.revision);
+            // Refresh the server-owned offline departure only after the
+            // checkpoint commit succeeds. This prevents normal online play
+            // time from being included in the later offline settlement.
+            if (typeof window.offlineHuntRefreshDeparture === 'function') {
+                await window.offlineHuntRefreshDeparture();
+            }
             cloudSync.warned = false;
             if (!cloudSync.ready && typeof logSys === 'function') {
                 cloudSync.ready = true;
+                if (typeof window.onlineCloudWarehouseBootstrap === 'function') window.onlineCloudWarehouseBootstrap().catch(function () {});
                 logSys('<span class="text-cyan-300">☁ 雲端進度同步已啟用。</span>');
             }
         } catch (error) {
             if (isSessionError(error)) { await sessionKicked(error); return; }
+            if (/CHECKPOINT_CONFLICT/i.test(String(error && (error.message || error)))) {
+                // A server action advanced the revision. Never retry the stale
+                // browser snapshot: reload the canonical checkpoint first.
+                await restoreCurrentCloudCheckpoint();
+                return;
+            }
             if (!cloudSync.warned && typeof logSys === 'function') {
                 cloudSync.warned = true;
                 logSys('<span class="text-yellow-300">☁ 雲端存檔暫時未完成，本機進度仍已保留。</span>');
@@ -354,6 +367,21 @@
         cloudSync.revision = Number(checkpoint.revision || 0);
         return true;
     }
+    async function restoreCurrentCloudCheckpoint() {
+        if (!cloudSync.sessionToken || !cloudSync.characterId) return false;
+        var slot = (typeof currentSlot !== 'undefined') ? currentSlot : 1;
+        var restored = await restoreCloudSave(cloudSync.characterId, slot);
+        if (!restored) return false;
+        // restoreCloudSave writes exactly the server checkpoint to the slot;
+        // loadGame then replaces the in-memory character instead of merging it.
+        if (typeof loadGame === 'function') loadGame();
+        if (typeof player !== 'undefined' && player) {
+            player.cloudCharacterId = cloudSync.characterId;
+            if (activeUser) player.cloudAccountId = activeUser.id;
+        }
+        if (typeof updateUI === 'function') updateUI();
+        return true;
+    }
     function installCloudSaveBridge() {
         if (window.__idleCloudSaveBridge || typeof window.saveGame !== 'function') return;
         window.__idleCloudSaveBridge = true;
@@ -368,8 +396,11 @@
         });
         window.addEventListener('pagehide', function () {
             if (cloudSync.locked) return;
+            // The offline-hunt arm call performs its own verified checkpoint
+            // sync before asking the server to record the departure.  Do not
+            // send a competing final browser save here.
             if (typeof window.offlineHuntSetDeparture === 'function') window.offlineHuntSetDeparture();
-            syncCloudSave();
+            else syncCloudSave();
         });
         // 網路短暫中斷或筆電休眠後，恢復連線時自動補送本機已保存的進度。
         window.addEventListener('online', function () { syncCloudSave(); });
@@ -546,6 +577,9 @@
                     player.cloudCharacterId = row.id;
                     player.cloudAccountId = activeUser.id;
                 }
+                // Server settlement is intentionally after loadGame: it can
+                // replace the local checkpoint with one authoritative result.
+                if (typeof window.offlineHuntResolve === 'function') await window.offlineHuntResolve();
                 return;
             }
             curCreate.rawCls = rawCls;
@@ -559,6 +593,7 @@
                 player.cloudAccountId = activeUser.id;
                 if (typeof saveGame === 'function') saveGame();
             }
+            if (typeof window.offlineHuntResolve === 'function') await window.offlineHuntResolve();
         } catch (error) {
             message('進入遊戲失敗：' + (error.message || '請重新整理後再試。'), 'error');
         }
@@ -628,11 +663,18 @@
     window.onlineCloudGmMutate = async function (action, payload) {
         if (!cloudGmRole) throw new Error('目前帳號沒有雲端 GM 權限。');
         if (typeof player === 'undefined' || !player || !player.cloudCharacterId) throw new Error('請先進入角色存檔。');
-        await syncCloudSave();
-        const data = await gameApi(Object.assign({ action:action, characterId:player.cloudCharacterId }, payload || {}));
+        let data;
+        try {
+            data = await gameApi(Object.assign({ action:action, characterId:player.cloudCharacterId }, payload || {}));
+        } catch (error) {
+            if (/CHECKPOINT_CONFLICT/i.test(String(error && (error.message || error)))) await restoreCurrentCloudCheckpoint();
+            throw error;
+        }
+        if (data && data.state && data.state.p && typeof data.state.p === 'object') Object.assign(player, data.state.p);
         if (Number.isFinite(Number(data.revision))) cloudSync.revision = Number(data.revision);
         return data;
     };
+    window.onlineCloudGmAllowed = function () { return !!cloudGmRole; };
     window.onlineAuthSignOut = async function () {
         stopCloudActivity();
         if (typeof window.onlineWorldChatReset === 'function') window.onlineWorldChatReset();
@@ -650,7 +692,62 @@
         if (Number.isFinite(revision) && revision >= 0) cloudSync.revision = revision;
     };
     window.onlineCloudSessionToken = function () { return cloudSync.sessionToken || ''; };
+    window.onlineCloudCharacterId = function () { return cloudSync.characterId || ''; };
+    window.onlineCloudAllySnapshots = async function () {
+        if (!cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
+        const data = await gameApi({ action:'characters.allies', characterId:cloudSync.characterId });
+        return Array.isArray(data && data.characters) ? data.characters : [];
+    };
+    window.onlineCloudSyncNow = syncCloudSave;
+    window.onlineCloudRestoreCheckpoint = restoreCurrentCloudCheckpoint;
     window.onlineCloudRequestId = newUuid;
+    // Warehouse transfers must advance the in-memory checkpoint immediately.
+    // The next ordinary cloud save then carries the server revision instead of
+    // replaying the pre-transfer inventory snapshot.
+    window.onlineCloudWarehouseActive = function () { return !!window.__serverWarehouseAuthoritative; };
+    window.onlineCloudWarehouseTransfer = async function (payload) {
+        if (!cloudSync.ready || !cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
+        if (!window.onlineCloudWarehouseActive()) throw new Error('WAREHOUSE_NOT_AUTHORITATIVE');
+        payload = Object.assign({ action:'warehouse.transfer', characterId:cloudSync.characterId, revision:cloudSync.revision, requestId:newUuid() }, payload || {});
+        let result;
+        try { result = await gameApi(payload); }
+        catch (error) {
+            if (/CHECKPOINT_CONFLICT/i.test(String(error && (error.message || error)))) await restoreCurrentCloudCheckpoint();
+            throw error;
+        }
+        if (result && result.state && result.state.p && typeof player !== 'undefined' && player) {
+            Object.keys(player).forEach(function (key) { delete player[key]; });
+            Object.assign(player, result.state.p);
+        }
+        if (result && Number.isFinite(Number(result.revision))) cloudSync.revision = Number(result.revision);
+        return result;
+    };
+    window.onlineCloudWarehouseStatus = async function () {
+        if (!cloudSync.ready || !cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
+        return gameApi({ action:'warehouse.status', characterId:cloudSync.characterId });
+    };
+    window.onlineCloudWarehouseBootstrap = async function () {
+        if (!cloudSync.ready || !cloudSync.sessionToken || !cloudSync.characterId || window.__serverWarehouseBootstrapping) return window.__serverWarehouse || null;
+        window.__serverWarehouseBootstrapping = true;
+        try {
+            let status;
+            try { status = await window.onlineCloudWarehouseStatus(); }
+            catch (error) {
+                if (/FEATURE_DISABLED/i.test(String(error && (error.message || error)))) return null;
+                throw error;
+            }
+            if (status && status.migrationRequired) {
+                const legacy = typeof loadWarehouse === 'function' ? loadWarehouse() : { gold:0, items:[] };
+                status = await gameApi({ action:'warehouse.migrate', characterId:cloudSync.characterId, requestId:newUuid(), legacyWarehouse:{ gold:Number(legacy.gold) || 0, items:Array.isArray(legacy.items) ? legacy.items : [] } });
+            }
+            if (status && status.authoritative) {
+                window.__serverWarehouse = status;
+                window.__serverWarehouseAuthoritative = true;
+                try { renderWarehouseNPC(document.getElementById('interaction-content')); } catch (_) {}
+            }
+            return status || null;
+        } finally { window.__serverWarehouseBootstrapping = false; }
+    };
 
     function install() {
         const factory = window.supabase && window.supabase.createClient;

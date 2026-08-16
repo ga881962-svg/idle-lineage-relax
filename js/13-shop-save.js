@@ -1966,11 +1966,13 @@ function loadGame() {
 // 創角點在第一次重置後會併入 alloc，因此只把「目前尚未配掉的點」補到最低應得值，
 // 不會覆寫既有角色的配點或萬能藥資料。
 function levelBonusEntitlement(p) {
-    return Math.max(0, Math.floor(Number((p || player).lv) || 1) - 49);
+    return Math.max(0, Math.min(PLAYER_LEVEL_CAP, Math.floor(Number((p || player).lv) || 1)) - 49);
 }
 function ensureLevelBonusPoints(p) {
     p = p || player;
     if (!p) return 0;
+    p.lv = Math.max(1, Math.min(PLAYER_LEVEL_CAP, Math.floor(Number(p.lv) || 1)));
+    if (p.lv >= PLAYER_LEVEL_CAP) p.exp = 0;
     if (!p.alloc || typeof p.alloc !== 'object') p.alloc = { str:0, dex:0, con:0, int:0, wis:0, cha:0 };
     ['str','dex','con','int','wis','cha'].forEach(function (s) { p.alloc[s] = Math.max(0, Math.floor(Number(p.alloc[s]) || 0)); });
     let entitled = levelBonusEntitlement(p);

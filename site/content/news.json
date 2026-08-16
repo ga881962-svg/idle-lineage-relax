@@ -1,0 +1,6 @@
+[
+  {"id":"welcome","type":"更新","typeKey":"update","date":"2026-08-14","title":"官方網站第一版上線","body":"官網現已提供最新消息、遊戲介紹、職業入口與遊戲資料導覽。"},
+  {"id":"cloud-save","type":"GM 公告","typeKey":"gm","date":"2026-08-14","title":"雲端帳號與單一遊戲連線說明","body":"同一帳號同時只保留一個有效遊戲連線，請勿共用帳號。"},
+  {"id":"market","type":"活動","typeKey":"event","date":"2026-08-14","title":"玩家交易所已開放使用","body":"交易所使用贊助鑽石進行玩家間安全整包交易。"},
+  {"id":"maintenance","type":"維護","typeKey":"maintenance","date":"2026-08-14","title":"維護公告發布位置","body":"後續維護時間與影響範圍將於本頁公布。"}
+]

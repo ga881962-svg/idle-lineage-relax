@@ -124,7 +124,7 @@ function renderAuditTab() {
     let sf = 10 / (mins || 0.001);
     let exp10 = Math.floor(_audit.exp * sf), gold10 = Math.floor(gold * sf);
     // 📊 v3.6.58 滿等：經驗不再入帳，但統計仍記「應得經驗」當練功效率指標 → 標註參考值免得誤會成還在升等
-    let expNote = (typeof player !== 'undefined' && player && (player.lv || 1) >= 100) ? '<span class="text-slate-500">（滿等·參考值）</span>' : '';
+    let expNote = (typeof player !== 'undefined' && player && (player.lv || 1) >= PLAYER_LEVEL_CAP) ? '<span class="text-slate-500">（滿等·參考值）</span>' : '';
     let watchHtml = _audit.watch.length ? _audit.watch.map((t, i) => {
         let c = _audit.watchCnt[t] || 0;
         return `<div class="flex justify-between items-center bg-slate-800/60 rounded px-2 py-1"><span>🎯 ${t}：<b class="${c>0?'text-green-400':'text-slate-300'}">${c}</b> 個</span><button onclick="auditRemoveIdx(${i})" class="btn px-2 py-0.5 text-xs bg-red-900 border-red-700 text-red-200">移除</button></div>`;
@@ -340,6 +340,13 @@ function killMob(idx) {
         }
     }
     mob._dead = true;
+    // 離線掛機只回報「發生了一次實際擊殺」。經驗、金幣、掉落與
+    // 擊殺效率均由伺服器依版本化遊戲目錄及伺服器時間重新計算。
+    try {
+        if (typeof window.offlineHuntRecordKill === 'function' && mob._offlineMobId) {
+            window.offlineHuntRecordKill(String(mob._offlineMobId), String(mapState.current || ''));
+        }
+    } catch (e) {}
     try { vfxKill(mob); } catch(e){}   // ✨ VFX：擊殺粒子爆裂（趁格子 DOM 仍在、重繪前）
     try { playMobKill(mob); } catch(e){}   // 🔊 音效：怪物死亡（依怪名對應專屬死亡音，查無→通用擊殺音）
     if (mob.curHp > 0) mob.curHp = 0;     // 待清算期間不可被當成活目標
@@ -378,8 +385,8 @@ function killMob(idx) {
             a.exp = (a.exp || 0) + _gain;
             a._expGained = (a._expGained || 0) + _gain;
             let _up = 0;
-            while ((a.lv || 1) < 100 && a.exp >= getExpReq(a.lv)) { a.exp -= getExpReq(a.lv); a.lv++; if (a.lv >= 50) a.bonus = (a.bonus || 0) + 1; _up++; }   // 比照 checkLvUp 升級曲線
-            if ((a.lv || 1) >= 100) a.exp = 0;
+            while ((a.lv || 1) < PLAYER_LEVEL_CAP && a.exp >= getExpReq(a.lv)) { a.exp -= getExpReq(a.lv); a.lv++; if (a.lv >= 50) a.bonus = (a.bonus || 0) + 1; _up++; }   // 比照 checkLvUp 升級曲線
+            if ((a.lv || 1) >= PLAYER_LEVEL_CAP) a.exp = 0;
             if (_up > 0) { try { if (typeof _allyLevelRecompute === 'function') _allyLevelRecompute(a); } catch (e) {} logCombat(`<span class="text-yellow-300 font-bold">協力傭兵 ${a._allyName} 升級了！目前 Lv.${a.lv}</span>`, 'mercenary'); try { renderSquadPanel(); } catch (e) {} }
         });
     }
@@ -490,10 +497,10 @@ function killMob(idx) {
         if(Math.random() < partyDropRate((ratePct * _dropBase * _clMult * _relicX2) / 100)) gainItem(itemId, 1);
     });
 
-    // === 萬能藥稀有掉落：所有可掉寶頭目統一 0.001%；一般敵人維持 Lv40 以上 0.01% ===
+    // === 萬能藥稀有掉落：僅符合既有資格的頭目統一 0.001%；一般敵人永不掉落 ===
     // 頭目不再依地圖、種類或既有專屬掉落表取得額外機率，夢幻之島頭目也同樣適用。
-    if (!_kbNoReward && !mob.siegeV2 && (mob.boss || (mob.lv || 0) >= 40) && mob.race !== '血盟') {   // 軍王之室小怪／城戰 V2 守軍不進萬能藥掉落
-        let _panRate = mob.boss ? 0.00001 : 0.0001;   // 頭目 0.001%／一般敵人 0.01%
+    if (!_kbNoReward && !mob.siegeV2 && mob.boss && mob.race !== '血盟') {   // 軍王之室小怪／城戰 V2 守軍不進萬能藥掉落
+        let _panRate = 0.00001;   // 頭目 0.001%
         if (_panRate > 0 && Math.random() < partyDropRate(_panRate * classicDropMult())) {
             const _PANACEA = ['panacea_str', 'panacea_dex', 'panacea_con', 'panacea_int', 'panacea_wis', 'panacea_cha'];
             let _pid = _PANACEA[Math.floor(Math.random() * _PANACEA.length)];
@@ -1358,7 +1365,7 @@ function renderRiftEntrance(container) {
 
 function checkLvUp() {
     let up = false;
-    while(player.lv < 100 && player.exp >= getExpReq(player.lv)) {
+    while(player.lv < PLAYER_LEVEL_CAP && player.exp >= getExpReq(player.lv)) {
         player.exp -= getExpReq(player.lv);   // 達到「升下一等所需經驗」即扣除該需求並升一級（非累積）
         player.lv++;
         if(player.lv >= 50) player.bonus++;

@@ -142,6 +142,18 @@ let _whLoadUids = null;
 function _whTombsRead(){ try { let raw = _lzGet(whKey() + '_rm'); if (raw == null || raw === '') return {}; let o = JSON.parse(raw); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch(e){ return {}; } }
 function _whTombsWrite(t){ try { let ks = Object.keys(t); if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(k => delete t[k]); _lzSet(whKey() + '_rm', JSON.stringify(t)); } catch(e){} }
 function loadWarehouse(){
+    // Signed-in builds intentionally never read the legacy localStorage bucket
+    // as a balance source. It may be stale relative to a transfer performed by
+    // another character. The small in-memory cache is display-only and is
+    // refreshed from warehouse.status; every mutation still goes to the RPC.
+    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) {
+        if (window.__serverWarehouse) return { items: Array.isArray(window.__serverWarehouse.items) ? window.__serverWarehouse.items : [], gold: Number(window.__serverWarehouse.gold) || 0 };
+        if (!window.__serverWarehouseLoading) {
+            window.__serverWarehouseLoading = true;
+            window.onlineCloudWarehouseStatus().then(w => { if (w && w.authoritative) window.__serverWarehouse = w; window.__serverWarehouseLoading = false; try { renderWarehouseNPC(document.getElementById('interaction-content')); } catch(e) {} }).catch(() => { window.__serverWarehouseLoading = false; });
+        }
+        return { items: [], gold: 0 };
+    }
     _whLoadOk = true; _whLoadUids = null;
     let key = whKey();
     let raw;
@@ -158,6 +170,10 @@ function loadWarehouse(){
     } catch(e){ _whLoadOk = false; return { items: [], gold: 0 }; }   // JSON 毀損→不可當成空倉庫
 }
 function saveWarehouse(w){
+    // Once Phase 1 is authoritative, localStorage remains only a recovery
+    // backup.  No caller (including a legacy crafting/NPC path) may overwrite
+    // the account warehouse with an in-memory copy.
+    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) return false;
     let key = whKey();
     // 安全網 A：上一次讀取失敗（桶存在卻解不開）→ 絕不用可能是空的資料覆蓋還救得回的位元組；先一次性備份原始值再拒寫並警告。
     if(_whLoadOk === false){
@@ -391,6 +407,10 @@ function whTxnCommit(w, snap){
 }
 // 一鍵存入：背包中「與倉庫現有物品 詞綴+名字+強化值 完全相同」者自動存入（鎖定物品保護、不可存物品略過）
 function whOneClickDeposit(){
+    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) {
+        if (typeof logSys === 'function') logSys('<span class="text-yellow-300">Server warehouse does not support batch deposit yet.</span>');
+        return;
+    }
     // 🏦 縱深守衛：倉庫只能在安全區使用（浮動視窗曾可被帶進狩獵區；closeNpcInteraction 已補關閉，這裡再擋一層）
     if (typeof mapState === 'undefined' || !mapState.current || !String(mapState.current).startsWith('town_')) { if (typeof logSys === 'function') logSys('<span class="text-red-400">離開安全區後無法使用倉庫。</span>'); return; }
     let w = loadWarehouse();
@@ -426,6 +446,16 @@ function sortWarehouse(){
     let el = document.getElementById('interaction-content'); if(el) renderWarehouseNPC(el);
 }
 function whDeposit(uidv, qty){
+    // In signed-in play, the DB transaction is the only authority.  Never
+    // mutate the local shared bucket first: that was the A→B→A duplication
+    // path when an old character checkpoint later saved its old inventory.
+    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) {
+        let it = player.inv.find(i => i.uid === uidv); if (!it) return;
+        let total = it.cnt || 1; if(qty === undefined){ let q=_whQtyVal(); qty=q>0?q:total; }
+        return window.onlineCloudWarehouseTransfer({ direction:'deposit', asset:'item', itemUid:uidv, quantity:Math.max(1,Math.min(total,qty||total)) })
+          .then(r => { window.__serverWarehouse = r.warehouse; renderTabs(true); updateUI(); renderWarehouseNPC(document.getElementById('interaction-content')); })
+          .catch(e => { logSys('<span class="text-red-400">倉庫轉移失敗：' + String(e.message || e) + '</span>'); });
+    }
     // 🏦 縱深守衛：倉庫只能在安全區使用（浮動視窗曾可被帶進狩獵區；closeNpcInteraction 已補關閉，這裡再擋一層）
     if (typeof mapState === 'undefined' || !mapState.current || !String(mapState.current).startsWith('town_')) { if (typeof logSys === 'function') logSys('<span class="text-red-400">離開安全區後無法使用倉庫。</span>'); return; }
     let w = loadWarehouse();
@@ -454,6 +484,13 @@ function whDeposit(uidv, qty){
     renderWarehouseNPC(document.getElementById('interaction-content'));
 }
 function whWithdraw(uidv, qty){
+    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) {
+        let it = (window.__serverWarehouse && window.__serverWarehouse.items || []).find(i => i.uid === uidv); if (!it) return;
+        let total = it.cnt || 1; if(qty === undefined){ let q=_whQtyVal(); qty=q>0?q:total; }
+        return window.onlineCloudWarehouseTransfer({ direction:'withdraw', asset:'item', itemUid:uidv, quantity:Math.max(1,Math.min(total,qty||total)) })
+          .then(r => { window.__serverWarehouse = r.warehouse; if(typeof registerEquipObtained==='function') registerEquipObtained(it.id); if(typeof registerMiscObtained==='function') registerMiscObtained(it.id); if(typeof registerRelicObtained==='function') registerRelicObtained(it.id); renderTabs(true); updateUI(); renderWarehouseNPC(document.getElementById('interaction-content')); })
+          .catch(e => { logSys('<span class="text-red-400">倉庫轉移失敗：' + String(e.message || e) + '</span>'); });
+    }
     // 🏦 縱深守衛：倉庫只能在安全區使用（浮動視窗曾可被帶進狩獵區；closeNpcInteraction 已補關閉，這裡再擋一層）
     if (typeof mapState === 'undefined' || !mapState.current || !String(mapState.current).startsWith('town_')) { if (typeof logSys === 'function') logSys('<span class="text-red-400">離開安全區後無法使用倉庫。</span>'); return; }
     let w = loadWarehouse();
@@ -486,6 +523,12 @@ function whWithdraw(uidv, qty){
     renderWarehouseNPC(document.getElementById('interaction-content'));
 }
 function whGold(dir){
+    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) {
+        let amt = parseInt(document.getElementById('wh-gold-amt').value) || 0; if (amt <= 0) return;
+        return window.onlineCloudWarehouseTransfer({ direction:dir === 'in' ? 'deposit' : 'withdraw', asset:'gold', quantity:amt })
+          .then(r => { window.__serverWarehouse = r.warehouse; updateUI(); renderWarehouseNPC(document.getElementById('interaction-content')); })
+          .catch(e => { logSys('<span class="text-red-400">倉庫轉移失敗：' + String(e.message || e) + '</span>'); });
+    }
     // 🏦 縱深守衛：倉庫只能在安全區使用（浮動視窗曾可被帶進狩獵區；closeNpcInteraction 已補關閉，這裡再擋一層）
     if (typeof mapState === 'undefined' || !mapState.current || !String(mapState.current).startsWith('town_')) { if (typeof logSys === 'function') logSys('<span class="text-red-400">離開安全區後無法使用倉庫。</span>'); return; }
     let amt = parseInt(document.getElementById('wh-gold-amt').value) || 0;

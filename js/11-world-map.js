@@ -593,13 +593,28 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 }
 
 // 🔧 村莊「出發」按鈕：一鍵回到上一張戰鬥地圖。軍王之室需鑰匙，無鑰匙顯示鑰匙不足。
-function departToLastBattle() {
+async function departToLastBattle() {
     if (player.statuses && (player.statuses.stone > 0 || player.statuses.paralyze > 0 || player.statuses.freeze > 0 || player.statuses.stun > 0 || player.statuses.sleep > 0)) {
         logSys('你目前無法行動（石化／麻痺／冰凍／暈眩），無法出發。');
         return;
     }
-    if (isHiddenArea(player.lastBattleMap)) { enterHiddenArea(player.lastBattleMap); return; }   // 🏛️ 上一張為隱藏狩獵區域→直接 force 重進（繞過選單可選性檢查）
     let tgt = player.lastBattleMap;
+    // Only the one automatic follow-up to a server-recorded offline revival
+    // requires offline.return.check.  Normal "depart" travel must not be
+    // gated by an offline pass or by a previous settlement.
+    const offlineReturnPending = !!player._offlineServerReturnPending;
+    if (offlineReturnPending && typeof window.offlineHuntCanReturn === 'function'
+        && typeof window.onlineCloudSessionToken === 'function'
+        && window.onlineCloudSessionToken()) {
+        const allowed = await window.offlineHuntCanReturn(tgt);
+        if (!allowed) {
+            delete player._offlineServerReturnPending;
+            logSys('<span class="text-amber-300">需要有效的「離線掛機（30 天）」月卡，且原練功地圖必須允許自動返回。</span>');
+            return;
+        }
+        delete player._offlineServerReturnPending;
+    }
+    if (isHiddenArea(tgt)) { enterHiddenArea(tgt); return; }   // 🏛️ 上一張為隱藏狩獵區域→直接 force 重進（繞過選單可選性檢查）
     if (tgt === 'rift_battle') { logSys('<span class="text-violet-300">扭曲的時空已經崩塌消失，沒有可以出發的地圖。</span>'); return; }   // 🌀 裂痕已崩塌：不可用「出發」重進，須在入口以龜裂之核重新進入
     // 🔧 攻城結束後，上一張戰鬥地圖若為攻城區（外門/內城）：強制改往新手修練場，避免重新進入已結束的攻城區
     if (tgt && SIEGE_OUTER_INNER.includes(tgt) && !(player.siege && player.siege.active)) {
@@ -1181,7 +1196,10 @@ function changeMap(force) {
     if (_changeTarget !== mapState.current && typeof npcClanOnLeaveBattleArea === 'function') npcClanOnLeaveBattleArea(!force);
     if (typeof giltasKeepOnLeave === 'function' && document.getElementById('map-select').value !== mapState.current) giltasKeepOnLeave();   // 🌑 v3.4.16 離開受詛咒聖地（回村/戰敗復活/切圖統一經此·helper 自帶地圖 gate）→ 吉爾塔斯 HP 保留判定＋提示
     mapState.current = document.getElementById('map-select').value;
-    if (!mapState.current.startsWith('town_')) player.lastBattleMap = mapState.current;   // 🔧 記住最後所在的戰鬥地圖，供村莊「出發」按鈕一鍵返回
+    if (!mapState.current.startsWith('town_')) {
+        player.lastBattleMap = mapState.current;   // 🔧 記住最後所在的戰鬥地圖，供村莊「出發」按鈕一鍵返回
+        if (typeof window.offlineHuntScheduleArm === 'function') window.offlineHuntScheduleArm();
+    }
     { let _c = mapRegionOf(mapState.current); if(_c) { if(!player.lastMapByCat) player.lastMapByCat = {}; player.lastMapByCat[_c] = mapState.current; } }   // 記住各「地區」分類最後到過的地圖（與下拉同鍵）
     mapState.mobs = [null, null, null, null, null];
     if (typeof _vfxClearAll === 'function') _vfxClearAll();   // 🎚️ v3.0.73 換地圖/回城：清掉上一張地圖尚在播放的死亡殘影等狩獵特效，避免蓋到村莊/新地圖介面
@@ -1194,6 +1212,7 @@ function changeMap(force) {
     let mapPanel = document.getElementById('town-view').parentElement;
     
     if (mapState.current.startsWith('town_')) {
+        if (typeof window.offlineHuntDisarm === 'function') window.offlineHuntDisarm('town_or_safe');
         document.getElementById('battle-view').classList.add('hidden');
         document.getElementById('combat-log-panel').classList.remove('hidden');   // 🏘️ v3.2.86 城鎮版面比照狩獵區：戰鬥/系統日誌一樣顯示於下方，填滿地圖下方空間
         document.getElementById('town-view').classList.remove('hidden');
@@ -1562,6 +1581,7 @@ function sanctuaryEnter(mapKey, costId) {
     saveSiegeBossHp();
     mapState.current = mapKey;
     player.lastBattleMap = mapKey;
+    if (typeof window.offlineHuntScheduleArm === 'function') window.offlineHuntScheduleArm();
     mapState.mobs = [null, null, null, null, null];
     mapState.spawnAt = [null, null, null, null, null];
     mapState._sanctBossSpawned = false;   // 🌑 v3.4.18 重置「首次生成免費」旗標：入場費已付→首隻頭目免費，之後每次復活扣 1 入場道具(js/03 sanctBossRespawnCharge)

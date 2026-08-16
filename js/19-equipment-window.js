@@ -46,6 +46,11 @@
     ];
 
     let page = 0;
+    // Keep the mounted equipment icons while unrelated UI updates occur.  The
+    // inventory tab is intentionally rebuilt often (drops, auto-sell, etc.);
+    // rebuilding this panel as a side effect restarts every image decode and
+    // makes equipped icons visibly flash.
+    let renderedSlotsFingerprint = null;
 
     function el(id) { return document.getElementById(id); }
 
@@ -87,6 +92,16 @@
     function renderSlots() {
         if (typeof player === 'undefined' || !player || !player.eq) return;
         const host = el('equipment-window-slots');
+        if (!host) return;
+        const fingerprint = JSON.stringify({
+            page,
+            slots: PAGE_SLOTS[page].map(pos => {
+                const actualKey = pos.alt && player.eq[pos.alt] ? pos.alt : pos.k;
+                return [actualKey, player.eq[actualKey] || null];
+            })
+        });
+        if (fingerprint === renderedSlotsFingerprint) return;
+        renderedSlotsFingerprint = fingerprint;
         host.innerHTML = '';
         PAGE_SLOTS[page].forEach(pos => {
             const actualKey = pos.alt && player.eq[pos.alt] ? pos.alt : pos.k;

@@ -1,14 +1,20 @@
 // 贊助使者：所有村莊共用的 30 天加成商店。
-// 離線掛機目前只記錄使用權；實際離線結算規則會在後續需求確定後接上。
+// 離線掛機月卡由伺服器驗證、計時與結算；瀏覽器只顯示狀態與購買結果。
 (function () {
     const DAYS_30 = 30 * 24 * 60 * 60 * 1000;
     const PASSES = {
         exp:     { name: '經驗加倍 x1.2（30 天）', price: 199, multiplier: 1.2, note: '打怪獲得的經驗值提高 20%。' },
         gold:    { name: '金幣加倍 x1.2（30 天）', price: 199, multiplier: 1.2, note: '怪物掉落的金幣提高 20%。' },
         drop:    { name: '掉落加倍 x1.2（30 天）', price: 199, multiplier: 1.2, note: '怪物的物品掉落機率提高 20%。' },
-        offline: { name: '離線掛機（30 天）', price: 599, multiplier: 1, note: '使用權先行啟用；離線結算規則將依後續設定套用。' }
+        offline: { name: '離線掛機（30 天）', price: 599, multiplier: 1, note: '離線期間由伺服器結算經驗、金幣與物品，並可返回最後允許的練功地圖。' }
     };
-    function stateFor(p) { if (!p) return {}; if (!p.sponsorPasses || typeof p.sponsorPasses !== 'object') p.sponsorPasses = {}; return p.sponsorPasses; }
+    // The offline pass is intentionally different from the legacy visual
+    // boosters: its validity and purchase balance are always read from the
+    // server, never from a save file or the browser clock.
+    // Pass authority is server-only.  `player.sponsorPasses` is intentionally
+    // never read or written here: it may be retained in old saves for display
+    // compatibility, but cannot grant a multiplier or offline permission.
+    let sponsorPassStatus = { loaded:false, loading:false, passes:{}, sponsorDiamonds:null };
     function currentPlayer() { return typeof player !== 'undefined' ? player : null; }
     // Sponsor Diamonds are the renamed shared Pandora currency.  Keep the old
     // storage API for save-file compatibility, but show one currency everywhere.
@@ -43,7 +49,33 @@
     }
     window.getSponsorDiamonds = sponsorDiamonds;
     window.adjustSponsorDiamonds = adjustSponsorDiamonds;
-    function untilFor(kind) { return Number(stateFor(currentPlayer())[kind]) || 0; }
+    function offlineOnlineReady() {
+        return typeof window.onlineCloudApi === 'function'
+            && typeof window.onlineCloudCharacterId === 'function' && !!window.onlineCloudCharacterId()
+            && typeof window.onlineCloudSessionToken === 'function' && !!window.onlineCloudSessionToken();
+    }
+    async function refreshSponsorPasses() {
+        if (sponsorPassStatus.loading || !offlineOnlineReady()) return sponsorPassStatus;
+        sponsorPassStatus.loading = true;
+        try {
+            const result = await window.onlineCloudApi({
+                action:'sponsor.status', characterId:window.onlineCloudCharacterId(),
+                requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : ''
+            });
+            sponsorPassStatus = {
+                loaded:true, loading:false,
+                passes:(result && result.passes && typeof result.passes === 'object') ? result.passes : {},
+                sponsorDiamonds:Number((result && result.sponsorDiamonds) || 0)
+            };
+        } catch (error) {
+            sponsorPassStatus.loading = false;
+            console.warn('sponsor pass status unavailable', error);
+        }
+        return sponsorPassStatus;
+    }
+    function untilFor(kind) {
+        return sponsorPassStatus.loaded ? (Date.parse(sponsorPassStatus.passes[kind]) || 0) : 0;
+    }
     function active(kind) { return untilFor(kind) > Date.now(); }
     function remaining(kind) { let ms = Math.max(0, untilFor(kind) - Date.now()); return ms ? ('剩餘 ' + Math.ceil(ms / 86400000) + ' 天') : '未啟用'; }
     window.sponsorGetMultiplier = function (kind) { return active(kind) && PASSES[kind] ? PASSES[kind].multiplier : 1; };
@@ -63,24 +95,34 @@
 
     window.renderSponsorMerchant = function (div) {
         if (!div) return;
-        let diamonds = sponsorDiamonds();
+        let diamonds = sponsorPassStatus.loaded && Number.isFinite(sponsorPassStatus.sponsorDiamonds)
+            ? sponsorPassStatus.sponsorDiamonds : sponsorDiamonds();
         let rows = Object.keys(PASSES).map(function (kind) {
             let pass = PASSES[kind], on = active(kind), enough = diamonds >= pass.price;
             return '<div class="sponsor-shop-row"><div class="sponsor-shop-copy"><div class="sponsor-shop-name">' + pass.name + '</div><div class="sponsor-shop-note">' + pass.note + '</div><div class="sponsor-shop-status ' + (on ? 'is-active' : '') + '">' + (on ? ('✓ 已啟用・' + remaining(kind)) : '尚未啟用') + '</div></div><div class="sponsor-shop-buy"><span class="sponsor-diamond">◆ ' + pass.price + '</span><button class="btn ' + (enough ? 'sponsor-buy-ready' : 'sponsor-buy-disabled') + '" ' + (enough ? '' : 'disabled') + ' onclick="sponsorBuy(\'' + kind + '\')">' + (enough ? '購買 30 天' : '鑽石不足') + '</button></div></div>';
         }).join('');
         div.innerHTML = '<div class="sponsor-merchant"><div class="sponsor-merchant-head"><div><div class="sponsor-title">贊助使者 <span>[贊助領取]</span></div><p>歡迎，冒險者。所有加成可以續購並累加天數。</p></div><div class="sponsor-balance">◆ 贊助鑽石：<b>' + Number(diamonds || 0).toLocaleString() + '</b></div></div><div class="sponsor-shop-list">' + rows + '</div></div>';
+        if (!sponsorPassStatus.loaded && !sponsorPassStatus.loading && offlineOnlineReady()) {
+            refreshSponsorPasses().then(function () {
+                if (document.getElementById('interaction-content') === div) window.renderSponsorMerchant(div);
+            });
+        }
     };
-    window.sponsorBuy = function (kind) {
+    window.sponsorBuy = async function (kind) {
         let pass = PASSES[kind]; if (!pass || !currentPlayer()) return;
-        let diamonds = sponsorDiamonds();
-        if (diamonds < pass.price) { if (typeof logSys === 'function') logSys('<span class="text-red-300">贊助鑽石不足，無法購買 ' + pass.name + '。</span>'); return; }
-        let paid = adjustSponsorDiamonds(-pass.price);
-        if (paid && paid.ok === false) return;
-        let passes = stateFor(player); passes[kind] = Math.max(Date.now(), Number(passes[kind]) || 0) + DAYS_30;
-        if (typeof saveGame === 'function') saveGame();
-        if (typeof logSys === 'function') logSys('<span class="text-amber-300 font-bold">贊助使者：已購買 ' + pass.name + '，目前 ' + remaining(kind) + '。</span>');
-        if (typeof updateUI === 'function') updateUI();
-        window.renderSponsorMerchant(document.getElementById('interaction-content'));
+        if (!offlineOnlineReady()) { if (typeof logSys === 'function') logSys('<span class="text-red-300">請先登入雲端帳號後再購買贊助券。</span>'); return; }
+        try {
+            const result = await window.onlineCloudApi({ action:'sponsor.pass.purchase', characterId:window.onlineCloudCharacterId(), kind:kind, requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : '' });
+            sponsorPassStatus.sponsorDiamonds = Number(result.sponsorDiamonds || 0);
+            sponsorPassStatus.passes = Object.assign({}, sponsorPassStatus.passes, (function(){ let p={}; p[kind]=String(result.expiresAt || ''); return p; }()));
+            sponsorPassStatus.loaded = true;
+            if (typeof logSys === 'function') logSys('<span class="text-amber-300 font-bold">贊助使者：已購買 ' + pass.name + '，目前 ' + remaining(kind) + '。</span>');
+            if (typeof updateUI === 'function') updateUI();
+            window.renderSponsorMerchant(document.getElementById('interaction-content'));
+        } catch (error) {
+            console.warn('sponsor pass purchase failed', error);
+            if (typeof logSys === 'function') logSys('<span class="text-red-300">贊助券購買失敗，請重新登入後再試。</span>');
+        }
     };
     function renderStatusRates() {
         let panel = document.getElementById('status-panel'); if (!panel || !currentPlayer()) return;

@@ -2,6 +2,7 @@
 (function () {
   'use strict';
   var MAX_MESSAGE_LENGTH = 120;
+  var MAX_VISIBLE_MESSAGES = 100;
   var TOPIC = 'world:global';
   var channel = null;
   var subscribed = false;
@@ -29,6 +30,13 @@
     row.dataset.onlineWorldId = id;
     row.innerHTML = '<b class="text-cyan-300">[' + esc(message.name || '冒險者') + ']</b> ' + esc(message.content || '');
     log.appendChild(row);
+    // Broadcast chat is session-ephemeral. Keep the visual buffer bounded so
+    // a long-lived tab cannot become an accidental client-side chat archive.
+    while (log.querySelectorAll('[data-online-world-id]').length > MAX_VISIBLE_MESSAGES) {
+      var oldest = log.querySelector('[data-online-world-id]');
+      if (!oldest) break;
+      oldest.remove();
+    }
     log.scrollTop = log.scrollHeight;
   }
   function removeChannel() {

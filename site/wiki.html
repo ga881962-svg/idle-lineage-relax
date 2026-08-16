@@ -1,18 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#08162b"><title>世界圖鑑｜放置天堂－休閒養老</title>
-  <link rel="stylesheet" href="site.css?v=1"><link rel="stylesheet" href="wiki.css?v=1">
-</head>
-<body class="wiki-body">
-  <header class="nav"><a class="brand" href="index.html">放置天堂 <small>休閒養老</small></a><nav><a href="index.html">官方首頁</a><a href="../index.html">進入遊戲</a></nav><a class="nav-play" href="../index.html">立即遊玩</a></header>
-  <main class="wiki-wrap">
-    <p class="section-kicker">遊戲資料庫</p><h1>世界圖鑑</h1><p class="wiki-lead">資料直接讀取目前遊戲版本。裝備、道具與怪物資料會隨遊戲更新同步。</p>
-    <div class="wiki-tabs" role="tablist"><button data-tab="items">🗡 裝備／道具</button><button data-tab="monsters">👹 怪物</button><button data-tab="enchant">🔨 強化規則</button></div>
-    <section id="data-panel" class="wiki-panel"><div class="wiki-loading">正在讀取遊戲資料…</div></section>
-  </main>
-  <footer>© 2026 放置天堂－休閒養老　<a href="../index.html">進入遊戲</a></footer>
-  <script src="../js/00-data.js?v=official-wiki-v1"></script><script src="wiki.js?v=1"></script>
-</body>
-</html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>遊戲資料｜放置天堂</title><link rel="stylesheet" href="site.css?v=official-v1"><link rel="stylesheet" href="wiki.css?v=official-v1"></head>
+<body><header class="site-header" data-site-header><a class="brand" href="index.html"><span class="brand-mark">✦</span><span>放置天堂<small>休閒養老</small></span></a><button class="nav-toggle" type="button" aria-label="開啟導覽選單" data-nav-toggle>☰</button><nav class="site-nav" data-site-nav><a href="index.html">首頁</a><a href="news.html">最新消息</a><a href="game.html">遊戲介紹</a><a href="classes.html">職業介紹</a><a class="active" href="wiki.html">遊戲資料</a><a href="sponsor.html">贊助說明</a><a class="nav-play" href="https://ga881962-svg.github.io/idle-lineage-relax/">開始遊戲</a></nav></header>
+<main class="page-main"><section class="page-hero"><div class="shell"><p class="eyebrow">GAME DATABASE</p><h1>遊戲資料</h1><p>圖鑑內容直接讀取目前遊戲的物品、怪物與掉落設定。資料調整後，官網會隨同程式碼更新。</p></div></section><section class="wiki-wrap shell"><div class="wiki-tabs" role="tablist"><button data-tab="items" role="tab">裝備／道具</button><button data-tab="monsters" role="tab">怪物圖鑑</button><button data-tab="drops" role="tab">掉落資料</button><button data-tab="enchant" role="tab">強化說明</button></div><div class="wiki-toolbar"><label>搜尋 <input id="wiki-search" type="search" placeholder="輸入名稱搜尋" autocomplete="off"></label><span id="wiki-count" class="muted"></span></div><div id="wiki-content" aria-live="polite"><p class="muted">正在讀取遊戲資料…</p></div><nav id="wiki-pagination" class="wiki-pagination" aria-label="圖鑑分頁"></nav></section></main><footer class="site-footer"><div class="shell"><span>資料以目前遊戲設定為準</span><a href="https://ga881962-svg.github.io/idle-lineage-relax/">進入遊戲</a></div></footer>
+<script src="../js/asset-resolver.js"></script><script src="../js/00-data.js"></script><script src="../js/01-drops-config.js"></script><script src="data-adapter.js?v=wiki-data-v2"></script><script src="site.js?v=official-v1"></script><script src="wiki.js?v=wiki-pagination-v2"></script></body></html>

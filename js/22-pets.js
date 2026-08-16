@@ -159,7 +159,7 @@ const PET_EXP_REQ_VERSION = 3;
 function petMigrateExpReqV3(p) {   // Lv70+ 玩家需求改版時，寵物同樣保留當級進度百分比
     if (!p || (p.expReqV || 0) >= PET_EXP_REQ_VERSION) return false;
     let lv = Math.max(1, Math.min(100, Math.floor(p.lv || 1)));
-    if (lv >= 100) p.exp = 0;
+    if (lv >= PLAYER_LEVEL_CAP) p.exp = 0;
     else if (lv >= 70) {
         let oldReq = Math.max(1, Math.floor(_expReqClassicV2(lv) / 10));
         let newReq = petExpReq(lv);
@@ -812,7 +812,7 @@ function petsGainExp(playerGain) {
     if (!(playerGain > 0)) return;
     let outs = petsOutList().filter(p => !p._downed);
     if (!outs.length) return;
-    let _cap = Math.min(100, (player.lv || 1));   // 🐾 v3.2.40 用戶指定：寵物等級不得超過玩家等級（達上限比照 Lv100 不累積經驗·玩家升級後恢復成長）
+    let _cap = Math.min(PLAYER_LEVEL_CAP, (player.lv || 1));   // 寵物等級不得超過玩家等級。
     outs.forEach(p => { if ((p.lv || 1) >= _cap) p.exp = 0; });   // 滿等者不囤經驗（原規則）
     // 🐾 v3.7.62 經驗不再由寵物平分：每隻未滿等且未倒地的出戰寵物都拿完整份額。
     let elig = outs.filter(p => (p.lv || 1) < _cap);

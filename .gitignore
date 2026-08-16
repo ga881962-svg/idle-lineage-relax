@@ -5,6 +5,7 @@
 
 # Local dependencies, desktop builds and development-only copies.
 /node_modules/
+/.phase0-npm-cache/
 /dist-windows/
 /.electron-cache/
 /.electron-builder-cache/
@@ -13,6 +14,7 @@
 /tools/
 /supabase/
 !/supabase/
+/supabase/.temp/
 !/supabase/functions/
 /supabase/functions/game-api/
 !/supabase/functions/idle-api/

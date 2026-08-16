@@ -39,7 +39,7 @@
         const need = Math.max(0, Number(getExpReq(player.lv)) || 0);
         const current = Math.max(0, Number(player.exp) || 0);
         const left = Math.max(0, need - current);
-        const pct = player.lv >= 100 ? 100 : (need ? Math.min(100, current / need * 100) : 0);
+        const pct = player.lv >= PLAYER_LEVEL_CAP ? 100 : (need ? Math.min(100, current / need * 100) : 0);
         const expText = document.getElementById('txt-exp');
         if (expText) expText.textContent = `EXP  ${pct.toFixed(2)}%`;
         rows.detail.innerHTML = `<span>EXP <b>${number(current)}</b> / ${number(need)}</span><span>Next <b>${number(left)}</b></span>`;

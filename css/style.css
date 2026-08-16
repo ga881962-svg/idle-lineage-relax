@@ -4185,3 +4185,12 @@ button.classic-skill-cell { cursor:pointer; }
     min-height:clamp(280px,78vw,390px) !important;
   }
 }
+/* Server-authoritative offline hunting receipt. */
+.offline-hunt-settlement-modal{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;padding:20px;background:rgba(2,6,23,.82);backdrop-filter:blur(5px)}
+.offline-hunt-settlement-card{position:relative;width:min(520px,100%);max-height:min(760px,calc(100dvh - 40px));overflow:auto;padding:26px;border:1px solid #c6922e;border-radius:16px;background:linear-gradient(160deg,#16243a,#080d1b);color:#dbeafe;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+.offline-hunt-settlement-card h2{margin:0 42px 18px 0;color:#facc15;font-size:1.55rem}.offline-hunt-settlement-card p{margin:10px 0}.offline-hunt-settlement-card b{color:#fff}
+.offline-hunt-settlement-close{position:absolute;top:12px;right:14px;width:40px;height:40px;border:1px solid #64748b;border-radius:10px;background:#1e293b;color:#fff;font-size:26px;line-height:1;cursor:pointer}
+.offline-hunt-settlement-rewards{margin:18px 0;padding:15px;border:1px solid #334155;border-radius:12px;background:rgba(15,23,42,.75)}.offline-hunt-settlement-rewards ul{margin:8px 0 0;padding-left:22px}
+.offline-hunt-settlement-note{padding:10px;border-left:3px solid #22d3ee;background:rgba(8,145,178,.12)}.offline-hunt-settlement-note.is-warning{border-color:#f59e0b;background:rgba(245,158,11,.12)}
+.offline-hunt-settlement-confirm{width:100%;margin-top:12px;padding:12px;border:1px solid #d69e2e;border-radius:10px;background:linear-gradient(135deg,#a16207,#713f12);color:#fff;font-weight:700;cursor:pointer}
+@media(max-width:520px){.offline-hunt-settlement-modal{padding:12px}.offline-hunt-settlement-card{padding:20px 16px;border-radius:13px}.offline-hunt-settlement-card h2{font-size:1.3rem}}

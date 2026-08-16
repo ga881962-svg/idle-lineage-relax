@@ -1,0 +1,45 @@
+{
+  "name": "idle-lineage-relax",
+  "version": "1.0.0",
+  "description": "放置天堂－休閒養老 Windows 安裝版",
+  "main": "desktop/main.cjs",
+  "private": true,
+  "scripts": {
+    "desktop": "electron .",
+    "build:windows": "electron-builder --win nsis --x64",
+    "verify:offline-catalog": "node tools/verify-offline-catalog.cjs",
+    "verify:catalogs": "node tools/verify-canonical-catalogs.cjs",
+    "verify:server-action-foundation": "node tools/verify-server-action-foundation.cjs",
+    "build:offline-catalog": "node tools/build-offline-hunt-catalog.cjs",
+    "build:item-classification-catalog": "node tools/build-item-classification-catalog.cjs",
+    "verify:item-classification-catalog": "node tools/verify-item-classification-catalog.cjs",
+    "verify:canonical-market-007": "node tools/verify-canonical-market-007.cjs",
+    "verify:canonical-market-schema-foundation": "node tools/verify-canonical-market-schema-foundation.cjs",
+    "verify:canonical-market-runtime-prereqs": "node tools/verify-canonical-market-runtime-prereqs.cjs",
+    "verify:phase1-canonical-market-a-x": "node tools/verify-phase1-canonical-market-a-x.cjs"
+  },
+  "devDependencies": {
+    "electron": "^37.2.4",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "tw.idlelineage.relax",
+    "productName": "放置天堂－休閒養老",
+    "artifactName": "放置天堂-休閒養老-Setup-${version}.${ext}",
+    "directories": { "output": "dist-windows" },
+    "files": [
+      "assets/**/*",
+      "css/**/*",
+      "desktop/**/*",
+      "js/**/*",
+      "public/**/*",
+      "site/**/*",
+      "index.html",
+      "manifest.webmanifest",
+      "service-worker.js",
+      "package.json"
+    ],
+    "win": { "target": ["nsis"], "icon": "assets/favicon.png" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true }
+  }
+}

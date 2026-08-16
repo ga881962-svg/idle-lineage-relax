@@ -6,7 +6,7 @@
 (function () {
     'use strict';
 
-    const MAX_LEVEL = 99;
+    const MAX_LEVEL = 75;
     const statKeys = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
     let gmItemCodePromise = null;
 
@@ -103,6 +103,16 @@
         return true;
     }
 
+    function onlineGmAllowed() {
+        return typeof window.onlineCloudGmAllowed === 'function' && window.onlineCloudGmAllowed();
+    }
+
+    function requireOnlineGm() {
+        if (onlineGmAllowed()) return true;
+        gmResult('GM_REQUIRED');
+        return false;
+    }
+
     function numberValue(id, fallback, min, max) {
         const value = Number(document.getElementById(id).value);
         if (!Number.isFinite(value)) return fallback;
@@ -116,6 +126,13 @@
         try { if (typeof saveGame === 'function') saveGame(); } catch (e) { console.warn(e); }
         const result = document.getElementById('gm-result');
         if (result) result.textContent = message || '已套用並儲存。';
+    }
+
+    function renderServerMutation(message) {
+        try { if (typeof calcStats === 'function') calcStats(); } catch (e) { console.warn(e); }
+        try { if (typeof updateUI === 'function') updateUI(); } catch (e) { console.warn(e); }
+        try { if (typeof renderTabs === 'function') renderTabs(true); } catch (e) { console.warn(e); }
+        gmResult(message);
     }
 
     function fillForm() {
@@ -134,6 +151,11 @@
     }
 
     window.gmToggle = function () {
+        if (!onlineGmAllowed()) {
+            const deniedPanel = document.getElementById('gm-panel');
+            if (deniedPanel) deniedPanel.hidden = true;
+            return;
+        }
         const panel = document.getElementById('gm-panel');
         if (!panel) return;
         const opening = panel.hidden;
@@ -143,13 +165,13 @@
     window.gmRefresh = fillForm;
 
     window.gmApplyCharacter = async function () {
-        if (!activeCharacter()) return;
+        if (!activeCharacter() || !requireOnlineGm()) return;
         const gold = numberValue('gm-gold', player.gold || 0, 0, Number.MAX_SAFE_INTEGER);
         const level = numberValue('gm-level', player.lv || 1, 1, MAX_LEVEL);
         const base = {};
         statKeys.forEach(function (key) { base[key] = numberValue('gm-' + key, (player.base && player.base[key]) || 0, 0, 99); });
         if (player.cloudCharacterId && typeof window.onlineCloudGmMutate === 'function') {
-            try { await window.onlineCloudGmMutate('gm.character.apply', { gold:gold, level:level, base:base }); }
+            try { await window.onlineCloudGmMutate('gm.character.apply', { gold:gold, level:level, base:base }); renderServerMutation('GM character update applied by server.'); fillForm(); return; }
             catch (error) { document.getElementById('gm-result').textContent = '雲端套用失敗：' + (error.message || '請稍後再試'); return; }
         }
         player.gold = gold;
@@ -165,7 +187,7 @@
     };
 
     window.gmGrantSponsorDiamonds = async function () {
-        if (!activeCharacter()) return;
+        if (!activeCharacter() || !requireOnlineGm()) return;
         const amount = numberValue('gm-sponsor-diamonds', 0, 1, Number.MAX_SAFE_INTEGER);
         if (player.cloudCharacterId && typeof window.onlineCloudGmGrantDiamonds === 'function') {
             try {
@@ -196,6 +218,7 @@
     }
 
     window.gmGrantPlayerSponsorDiamonds = async function () {
+        if (!requireOnlineGm()) return;
         const account = gmTargetAccount();
         const amount = numberValue('gm-target-diamonds', 0, 1, 1000000000);
         if (!/^[a-z0-9_]{3,20}$/.test(account)) return gmResult('請輸入玩家登入帳號（3～20 碼英文小寫、數字或 _）。');
@@ -209,6 +232,7 @@
     };
 
     window.gmGrantPlayerItem = async function () {
+        if (!requireOnlineGm()) return;
         const account = gmTargetAccount();
         const characterName = gmTargetCharacter();
         const input = String((document.getElementById('gm-target-item-id') || {}).value || '').trim();
@@ -231,7 +255,7 @@
     };
 
     window.gmGrantItem = async function () {
-        if (!activeCharacter()) return;
+        if (!activeCharacter() || !requireOnlineGm()) return;
         const input = (document.getElementById('gm-item-id').value || '').trim();
         const id = await resolveItemInput(input);
         const qty = numberValue('gm-item-qty', 1, 1, 99999);
@@ -243,6 +267,8 @@
             const entry = { id:id, cnt:qty, en:0, bless:false, anc:false, attr:false, seteff:false, lock:false, junk:false };
             if (player.cloudCharacterId && typeof window.onlineCloudGmMutate === 'function') {
                 await window.onlineCloudGmMutate('gm.inventory.grant', { item:entry });
+                renderServerMutation('GM inventory grant applied by server.');
+                return;
             }
             gainItem(id, qty, true, true);
             persist('已發放：' + (DB.items[id].n || id) + ' × ' + qty + '。');
@@ -254,7 +280,7 @@
 
     // 強化裝備以獨立物件發放，避免先取得 +0 裝備後再修改，誤把既有的同一堆 +0 裝備一併升級。
     window.gmGrantEnhancedItem = async function () {
-        if (!activeCharacter()) return;
+        if (!activeCharacter() || !requireOnlineGm()) return;
         const input = (document.getElementById('gm-item-id').value || '').trim();
         const id = await resolveItemInput(input);
         const qty = numberValue('gm-item-qty', 1, 1, 99999);
@@ -270,6 +296,8 @@
         if (player.cloudCharacterId && typeof window.onlineCloudGmMutate === 'function') {
             try {
                 await window.onlineCloudGmMutate('gm.inventory.grant', { item:{ id:id, cnt:qty, en:en, bless:false, anc:false, attr:false, seteff:false, lock:false, junk:false } });
+                renderServerMutation('GM enhanced inventory grant applied by server.');
+                return;
             } catch (error) { document.getElementById('gm-result').textContent = '雲端發放失敗：' + (error.message || '請稍後再試'); return; }
         }
         const existing = (player.inv || []).find(function (entry) {
@@ -288,7 +316,9 @@
     };
 
     window.gmHeal = function () {
-        if (!activeCharacter()) return;
+        if (!activeCharacter() || !requireOnlineGm()) return;
+        gmResult('ONLINE_GM_HEAL_NOT_IMPLEMENTED');
+        return;
         player.dead = false;
         player.hp = player.mhp || player.hp;
         player.mp = player.mmp || player.mp;
@@ -299,7 +329,7 @@
     // GM 專用：依目前角色職業授予全部可學技能。略過純武器觸發(procOnly)與沒有職業需求的內部技能，
     // 並刻意略過等級／精靈屬性限制；GM 學習後不消耗任何技能書。
     window.gmLearnAllSkills = async function () {
-        if (!activeCharacter()) return;
+        if (!activeCharacter() || !requireOnlineGm()) return;
         if (typeof DB === 'undefined' || !DB.skills || typeof skillReqLv !== 'function') {
             document.getElementById('gm-result').textContent = '技能資料尚未載入，請稍候後再試。';
             return;
@@ -314,7 +344,7 @@
             if (!known.has(id)) { known.add(id); player.skills.push(id); learned++; }
         });
         if (player.cloudCharacterId && typeof window.onlineCloudGmMutate === 'function') {
-            try { await window.onlineCloudGmMutate('gm.skills.learn', { skills:player.skills }); }
+            try { await window.onlineCloudGmMutate('gm.skills.learn', { skills:player.skills }); renderServerMutation('GM skills update applied by server.'); return; }
             catch (error) { document.getElementById('gm-result').textContent = '雲端學習失敗：' + (error.message || '請稍後再試'); return; }
         }
         try { if (typeof renderSkillSelects === 'function') renderSkillSelects(); } catch (e) { console.warn(e); }
@@ -324,7 +354,7 @@
     // GM 專用：收藏冊的內容只記錄「已取得」狀態，不會把數百件物品塞入背包。
     // 一次完成裝備、道具、怪物卡片、遺物四本收藏冊，並套用各自的完成加成。
     window.gmCompleteCollections = async function () {
-        if (!activeCharacter()) return;
+        if (!activeCharacter() || !requireOnlineGm()) return;
         const count = { equip: 0, misc: 0, card: 0, relic: 0 };
         player.equipDex = player.equipDex || {};
         if (typeof EQUIP_ITEM_CAT !== 'undefined') Object.keys(EQUIP_ITEM_CAT).forEach(function (id) {
@@ -345,6 +375,8 @@
         if (player.cloudCharacterId && typeof window.onlineCloudGmMutate === 'function') {
             try {
                 await window.onlineCloudGmMutate('gm.collections.complete', { collections:{ equipDex:player.equipDex, miscDex:player.miscDex, cardDex:player.cardDex, relicDex:player.relicDex } });
+                renderServerMutation('GM collections update applied by server.');
+                return;
             } catch (error) { document.getElementById('gm-result').textContent = '雲端收藏更新失敗：' + (error.message || '請稍後再試'); return; }
         }
         try { if (typeof saveEquipDex === 'function') saveEquipDex(); } catch (e) { console.warn(e); }
@@ -384,12 +416,12 @@
         document.head.appendChild(style);
         const root = document.createElement('div');
         root.innerHTML = `
-            <button id="gm-toggle" type="button" onclick="gmToggle()" title="單機 GM 控制台（F10）">GM</button>
+            <button id="gm-toggle" type="button" style="display:none" onclick="gmToggle()" title="GM 控制台（F10）">GM</button>
             <aside id="gm-panel" hidden aria-label="GM 控制台">
                 <div class="gm-head"><strong>單機 GM 控制台</strong><button class="gm-close" type="button" onclick="gmToggle()">關閉</button></div>
                 <div class="gm-content">
                     <section class="gm-section"><h3>目前角色</h3>
-                        <div class="gm-grid"><label class="gm-label">金幣<input id="gm-gold" class="gm-input" type="number" min="0" step="1"></label><label class="gm-label">等級（1–99）<input id="gm-level" class="gm-input" type="number" min="1" max="99" step="1"></label></div>
+                        <div class="gm-grid"><label class="gm-label">金幣<input id="gm-gold" class="gm-input" type="number" min="0" step="1"></label><label class="gm-label">等級（1–75）<input id="gm-level" class="gm-input" type="number" min="1" max="75" step="1"></label></div>
                         <div class="gm-grid" style="margin-top:8px"><label class="gm-label">贊助鑽石（本次贈送數量）<input id="gm-sponsor-diamonds" class="gm-input" type="number" value="100" min="1" step="1"></label><label class="gm-label">目前贊助鑽石<input id="gm-sponsor-balance" class="gm-input" type="text" readonly></label></div>
                         <div class="gm-actions"><button class="gm-btn gm-primary" type="button" onclick="gmGrantSponsorDiamonds()">贈送贊助鑽石</button></div>
                         <div class="gm-grid stats" style="margin-top:8px"><label class="gm-label">力量<input id="gm-str" class="gm-input" type="number" min="0" max="99"></label><label class="gm-label">敏捷<input id="gm-dex" class="gm-input" type="number" min="0" max="99"></label><label class="gm-label">體質<input id="gm-con" class="gm-input" type="number" min="0" max="99"></label><label class="gm-label">智力<input id="gm-int" class="gm-input" type="number" min="0" max="99"></label><label class="gm-label">精神<input id="gm-wis" class="gm-input" type="number" min="0" max="99"></label><label class="gm-label">魅力<input id="gm-cha" class="gm-input" type="number" min="0" max="99"></label></div>
@@ -424,7 +456,7 @@
     function init() {
         buildPanel();
         window.addEventListener('keydown', function (event) {
-            if (event.key === 'F10') { event.preventDefault(); window.gmToggle(); }
+            if (event.key === 'F10' && onlineGmAllowed()) { event.preventDefault(); window.gmToggle(); }
         });
     }
 

@@ -598,7 +598,16 @@
         });
     }
 
+    function _offlineUsesServerAuthority() {
+        return !!(window.offlineHuntRules && window.offlineHuntRules.serverAuthoritative
+            && typeof window.onlineCloudCharacterId === 'function' && window.onlineCloudCharacterId()
+            && typeof window.onlineCloudSessionToken === 'function' && window.onlineCloudSessionToken());
+    }
+
     function _offlinePrepareSnapshot(now, closingPage) {
+        // Cloud characters are armed and settled by idle-api.  Never create a
+        // browser-authoritative claim for the same absence window.
+        if (_offlineUsesServerAuthority()) return null;
         now = Math.max(0, Math.floor(_offlineFinite(now, _offlineNow())));
         let activityNow = now;
         if (_offlineHiddenAt > 0 && activityNow > _offlineHiddenAt) activityNow = _offlineHiddenAt;
@@ -693,17 +702,17 @@
         amount = Math.max(0, Math.floor(_offlineFinite(amount, 0)));
         if (!amount || !Array.isArray(player.allies)) return;
         player.allies.forEach(a => {
-            if (!a || a._downed || (a.lv || 1) >= 100) return;
+            if (!a || a._downed || (a.lv || 1) >= PLAYER_LEVEL_CAP) return;
             a.exp = Math.max(0, Number(a.exp) || 0) + amount;
             a._expGained = Math.max(0, Number(a._expGained) || 0) + amount;
             let levels = 0;
-            while ((a.lv || 1) < 100 && a.exp >= getExpReq(a.lv)) {
+            while ((a.lv || 1) < PLAYER_LEVEL_CAP && a.exp >= getExpReq(a.lv)) {
                 a.exp -= getExpReq(a.lv);
                 a.lv++;
                 if (a.lv >= 50) a.bonus = (a.bonus || 0) + 1;
                 levels++;
             }
-            if ((a.lv || 1) >= 100) a.exp = 0;
+            if ((a.lv || 1) >= PLAYER_LEVEL_CAP) a.exp = 0;
             if (levels > 0 && typeof _allyLevelRecompute === 'function') {
                 try { _allyLevelRecompute(a); } catch (e) {}
             }
@@ -1592,7 +1601,7 @@
             { items: {}, cards: {}, itemCount: 0, cardCount: 0 };
         let safeRoom = Number.MAX_SAFE_INTEGER - Math.max(0, Number(player.gold) || 0);
         gold = Math.min(gold, Math.max(0, safeRoom));
-        if ((player.lv || 1) < 100 && exp > 0) {
+        if ((player.lv || 1) < PLAYER_LEVEL_CAP && exp > 0) {
             player.exp = Math.max(0, Number(player.exp) || 0) + exp;
             if (typeof checkLvUp === 'function') checkLvUp();
         } else {
@@ -1671,6 +1680,15 @@
     }
 
     function _offlineSettleCatchup(elapsedMs, reason) {
+        // Online characters never replay browser-side combat or rewards after
+        // a hidden-tab/page restore.  The server settlement receipt is the
+        // only player-facing result for an absence window.  Mark this legacy
+        // local catch-up as consumed so an old localStorage record cannot be
+        // retried after the canonical server path has taken over.
+        if (_offlineUsesServerAuthority()) {
+            _offlineLastBatchSavedOk = true;
+            return true;
+        }
         if (_offlineSettling || _offlineLoading || typeof document === 'undefined' || document.hidden) return false;
         if (typeof player === 'undefined' || !player || !player.cls || typeof state === 'undefined' || !state.running) return true;
         let rawElapsed = Math.max(0, Math.floor(_offlineFinite(elapsedMs, 0)));
@@ -1713,6 +1731,7 @@
     window.offlineSettleCatchup = _offlineSettleCatchup;
 
     function _offlineSettle(reason) {
+        if (_offlineUsesServerAuthority()) return false;
         if (_offlineSettling || _offlineLoading || typeof document === 'undefined' || document.hidden) return false;
         if (typeof player === 'undefined' || !player || !player.cls || typeof state === 'undefined' || !state.running) return false;
         _offlineSettling = true;
