@@ -1722,6 +1722,10 @@ function interactNPC(npcId, townId) {
     if (npc.classicHide && player.classicMode) return;   // 🔥 經典模式：漢 不可互動（縱深防護，正常情況卡片已不渲染；v3.0.77 碧恩經典可用）
     if (npc.classicOnly && !player.classicMode) return;   // 🕊️ 經典限定 NPC（聖使阿卡塔）：一般模式不可互動（縱深防護，渲染層已過濾）
     _activePanel = null;   // 開啟新面板：先清除自動刷新標記，由對應 render 視需要重新設定
+    // Invalidate a previous async panel before any early-return route (such as
+    // the floating warehouse) can take over the screen.
+    let priorContent = document.getElementById('interaction-content');
+    if (priorContent) priorContent.dataset.npcId = '';
 
     // 🔧 v2.6.77 倉庫 NPC：浮動倉庫直接覆蓋在村莊 NPC 清單上，不切入舊式 NPC 互動畫面
     //    → 關閉倉庫後直接回到村莊頁面，不會再露出「返回村莊」的互動頁（參考用戶 2667 修正版）
@@ -1739,6 +1743,10 @@ function interactNPC(npcId, townId) {
     
     let contentDiv = document.getElementById('interaction-content');
     contentDiv.innerHTML = '';
+    // `interaction-content` is shared by every NPC. Async renderers must only
+    // refresh while their own NPC is still active, otherwise a late response
+    // can overwrite the next NPC's panel (for example Sponsor → Mercenary).
+    contentDiv.dataset.npcId = String(npc.id || '');
 
     // 根據 NPC 的類型，載入不同的 UI
     if (npc.type === 'shop' || npc.id === 'npc_gilen') {
@@ -1852,6 +1860,8 @@ function closeNpcInteraction() {
     //    那樣會變成點任何一個 NPC 都把倉庫關掉。倉庫的關閉點在 changeMap 的「離開安全區」分支。
     document.getElementById('town-interaction-container').classList.add('hidden');
     document.getElementById('town-interaction-container').classList.remove('flex');
+    let content = document.getElementById('interaction-content');
+    if (content) content.dataset.npcId = '';
     { let _m = document.getElementById('town-npc-map'); if (_m && !_m.classList.contains('town-cards-mode')) _m.classList.remove('hidden'); }
     { let _c = document.getElementById('town-npc-container'); if (_c && _c.classList.contains('town-npc-cards')) _c.classList.remove('hidden'); }
 }
@@ -2357,6 +2367,9 @@ function openTownFloatWindow(name, title, renderFn) {
     document.getElementById('interaction-npc-title').innerText = title ? ('[' + title + ']') : '';
     let content = document.getElementById('interaction-content');
     content.innerHTML = '';
+    // A float panel also shares this container. It is never a sponsor panel,
+    // so invalidate a pending sponsor status response before rendering it.
+    content.dataset.npcId = '';
     try { if (typeof renderFn === 'function') renderFn(content); } catch (e) {}
 }
 

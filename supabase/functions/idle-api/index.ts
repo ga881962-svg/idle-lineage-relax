@@ -119,7 +119,7 @@ Deno.serve(async (request) => {
     return reply({ ok: true });
   }
 
-  if (["characters.list", "characters.allies", "characters.create"].includes(String(input.action))) {
+  if (["characters.list", "characters.create"].includes(String(input.action))) {
     const denied = await requireSession(); if (denied) return denied;
   }
   if (input.action === "characters.list") {
@@ -127,8 +127,6 @@ Deno.serve(async (request) => {
     if (error) return reply({ error: "CHARACTER_LIST_FAILED" }, 500);
     const characters = data || [];
     const ids = characters.map((character) => character.id);
-    // The roster level is derived from the latest server checkpoint.  The
-    // summary column is only a fallback for a just-created/no-checkpoint role.
     const { data: checkpoints, error: checkpointError } = ids.length
       ? await admin.from("character_checkpoints").select("character_id,state").in("character_id", ids)
       : { data: [], error: null };
@@ -141,27 +139,6 @@ Deno.serve(async (request) => {
       return { ...character, level: savedLevel > 0 ? savedLevel : character.level };
     }) });
   }
-  if (input.action === "characters.allies") {
-    if (!uuid(input.characterId)) return reply({ error: "INVALID_CHARACTER" }, 400);
-    const current = await ownCharacter(input.characterId);
-    if (!current) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
-    const { data, error } = await admin.from("player_characters")
-      .select("id,slot,name,class_id,level,character_checkpoints(revision,state,saved_at)")
-      .eq("user_id", user.id).neq("id", current.id).order("slot", { ascending: true });
-    if (error) return reply({ error: "CHARACTER_ALLIES_FAILED" }, 500);
-    return reply({ characters: (data || []).map((character) => {
-      const checkpoint = Array.isArray(character.character_checkpoints) ? character.character_checkpoints[0] : character.character_checkpoints;
-      const state = isRecord(checkpoint) && isRecord(checkpoint.state) ? checkpoint.state : {};
-      const savedPlayer = isRecord(state.p) ? state.p : {};
-      const savedLevel = int(savedPlayer.lv ?? savedPlayer.level, 0);
-      return {
-        id: character.id, slot: character.slot, name: character.name, class_id: character.class_id,
-        level: savedLevel > 0 ? savedLevel : character.level,
-        revision: isRecord(checkpoint) ? int(checkpoint.revision, 0) : 0,
-        state,
-      };
-    }) });
-  }
   if (input.action === "characters.create") {
     const slot = int(input.slot, -1); const name = nameOf(input.name); const classId = String(input.classId || "");
     const classes = new Set(["prince","knight","elf","wizard","darkelf","dragonknight","illusionist","warrior"]);
@@ -172,101 +149,38 @@ Deno.serve(async (request) => {
     return error ? reply({ error: "CHARACTER_CREATE_FAILED" }, 500) : reply({ character: data }, 201);
   }
 
-  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","warehouse.status","warehouse.migrate","warehouse.transfer","warehouse.consume","sponsor.status","sponsor.pass.purchase","offline.status","offline.pass.purchase","offline.arm","offline.kill","offline.disarm","offline.settle","offline.ack","offline.return.check","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
+  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","sponsor.pass.status","sponsor.pass.purchase","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
   if (protectedActions.has(String(input.action))) { const denied = await requireSession(); if (denied) return denied; }
   if (input.action === "gm.status") { const role = await getRole(); return reply({ allowed: !!role, role: role || "player" }); }
 
+  // Sponsor passes are a server purchase: the browser only asks for a status
+  // or submits an idempotent request id. It never supplies a price, balance or
+  // expiry timestamp.
   if (String(input.action).startsWith("sponsor.")) {
     const character = await ownCharacter(input.characterId);
     if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
-    const args: Record<string, unknown> = { p_session_token: String(input.sessionToken), p_character_id: character.id };
-    let rpc = "";
-    if (input.action === "sponsor.status") rpc = "sponsor_pass_status";
+    if (input.action === "sponsor.pass.status") {
+      const { data, error } = await auth.rpc("sponsor_pass_status", {
+        p_session_token: String(input.sessionToken), p_character_id: character.id,
+      });
+      return error ? reply({ error: "SPONSOR_STATUS_FAILED" }, 500) : reply(isRecord(data) ? data : {});
+    }
     if (input.action === "sponsor.pass.purchase") {
-      if (!uuid(input.requestId) || !["exp", "gold", "drop", "offline"].includes(String(input.kind))) return reply({ error: "INVALID_SPONSOR_PURCHASE" }, 400);
-      rpc = "sponsor_pass_purchase";
-      args.p_pass_kind = String(input.kind);
-      args.p_request_id = String(input.requestId);
+      const kind = String(input.kind || "");
+      if (!uuid(input.requestId) || !["exp", "gold", "drop"].includes(kind)) return reply({ error: "INVALID_SPONSOR_PURCHASE" }, 400);
+      const { data, error } = await auth.rpc("sponsor_pass_purchase", {
+        p_session_token: String(input.sessionToken), p_character_id: character.id,
+        p_pass_kind: kind, p_request_id: String(input.requestId),
+      });
+      if (error) {
+        const detail = `${error.message || ""} ${error.details || ""}`;
+        if (/INSUFFICIENT_SPONSOR_DIAMONDS/i.test(detail)) return reply({ error: "INSUFFICIENT_SPONSOR_DIAMONDS" }, 409);
+        if (/REQUEST_ID_PAYLOAD_MISMATCH/i.test(detail)) return reply({ error: "REQUEST_ID_PAYLOAD_MISMATCH" }, 409);
+        if (/SESSION_(REPLACED|REQUIRED|EXPIRED)|INVALID_SESSION/i.test(detail)) return reply({ error: "SESSION_REPLACED" }, 409);
+        return reply({ error: "SPONSOR_PURCHASE_FAILED" }, 500);
+      }
+      return reply(isRecord(data) ? data : {});
     }
-    if (!rpc) return reply({ error: "UNKNOWN_ACTION" }, 400);
-    const { data, error } = await auth.rpc(rpc, args);
-    if (error) {
-      const message = `${error.code || ""} ${error.message || ""} ${error.details || ""}`;
-      if (/SESSION_(REPLACED|REQUIRED|EXPIRED)|INVALID_SESSION/i.test(message)) return reply({ error: "SESSION_REPLACED" }, 409);
-      if (/INSUFFICIENT_SPONSOR_DIAMONDS/i.test(message)) return reply({ error: "INSUFFICIENT_SPONSOR_DIAMONDS" }, 409);
-      return reply({ error: "SPONSOR_ACTION_FAILED", code:error.code, message:error.message }, 400);
-    }
-    return reply(isRecord(data) ? data : { result:data });
-  }
-
-  if (String(input.action).startsWith("warehouse.")) {
-    const character = await ownCharacter(input.characterId);
-    if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
-    const args: Record<string, unknown> = { p_session_token: String(input.sessionToken), p_character_id: character.id };
-    let rpc = "";
-    if (input.action === "warehouse.status") rpc = "warehouse_status";
-    if (input.action === "warehouse.migrate") {
-      if (!uuid(input.requestId) || !isRecord(input.legacyWarehouse)) return reply({ error: "INVALID_WAREHOUSE_MIGRATION" }, 400);
-      rpc = "warehouse_migrate";
-      args.p_request_id = String(input.requestId);
-      args.p_legacy = jsonClone(input.legacyWarehouse);
-    }
-    if (input.action === "warehouse.transfer") {
-      const direction = String(input.direction || ""); const asset = String(input.asset || "");
-      if (!uuid(input.requestId) || !["deposit", "withdraw"].includes(direction) || !["gold", "item"].includes(asset) || int(input.revision, -1) < 0) return reply({ error: "INVALID_WAREHOUSE_TRANSFER" }, 400);
-      if (asset === "item" && !String(input.itemUid || "")) return reply({ error: "INVALID_WAREHOUSE_ITEM" }, 400);
-      rpc = "warehouse_transfer";
-      args.p_request_id = String(input.requestId); args.p_expected_revision = int(input.revision); args.p_direction = direction; args.p_asset = asset;
-      args.p_item_uid = asset === "item" ? String(input.itemUid) : null; args.p_quantity = int(input.quantity, 0);
-    }
-    if (input.action === "warehouse.consume") {
-      if (!uuid(input.requestId) || int(input.revision, -1) < 0 || !Array.isArray(input.requirements)) return reply({ error: "INVALID_WAREHOUSE_CONSUME" }, 400);
-      rpc = "warehouse_consume"; args.p_request_id = String(input.requestId); args.p_expected_revision = int(input.revision); args.p_requirements = input.requirements;
-    }
-    if (!rpc) return reply({ error: "UNKNOWN_ACTION" }, 400);
-    const { data, error } = await auth.rpc(rpc, args);
-    if (error) {
-      const message = `${error.code || ""} ${error.message || ""} ${error.details || ""}`;
-      if (/SESSION_(REPLACED|REQUIRED|EXPIRED)|INVALID_SESSION/i.test(message)) return reply({ error: "SESSION_REPLACED" }, 409);
-      if (/CHECKPOINT_CONFLICT/i.test(message)) return reply({ error: "CHECKPOINT_CONFLICT" }, 409);
-      if (/INSUFFICIENT|ITEM_NOT|WAREHOUSE_ITEM_FORBIDDEN|WAREHOUSE_ITEM_LOCKED|DUPLICATE_ITEM_UID|INVENTORY_FULL|MIGRATION_REQUIRED/i.test(message)) return reply({ error: "WAREHOUSE_TRANSFER_REJECTED", message:error.message }, 409);
-      return reply({ error: "WAREHOUSE_ACTION_FAILED", code:error.code, message:error.message }, 400);
-    }
-    return reply(isRecord(data) ? data : { result:data });
-  }
-
-  if (String(input.action).startsWith("offline.")) {
-    const character = await ownCharacter(input.characterId);
-    if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
-    const actionToRpc: Record<string, string> = {
-      "offline.status": "offline_hunt_status",
-      "offline.pass.purchase": "offline_hunt_purchase_pass",
-      "offline.arm": "offline_hunt_arm",
-      "offline.kill": "offline_hunt_record_kill",
-      "offline.disarm": "offline_hunt_disarm",
-      "offline.settle": "offline_hunt_settle",
-      "offline.ack": "offline_hunt_ack",
-      "offline.return.check": "offline_hunt_can_return",
-    };
-    const rpc = actionToRpc[String(input.action)];
-    const args: Record<string, unknown> = {
-      p_session_token: String(input.sessionToken),
-      p_character_id: character.id,
-    };
-    if (input.action === "offline.arm" || input.action === "offline.return.check") args.p_map_id = String(input.mapId || "");
-    if (input.action === "offline.kill") { args.p_map_id = String(input.mapId || ""); args.p_mob_id = String(input.mobId || ""); }
-    if (input.action === "offline.disarm") args.p_reason = String(input.reason || "not_in_combat").slice(0, 80);
-    if (input.action === "offline.ack") args.p_settlement_id = String(input.settlementId || "");
-    if (["offline.pass.purchase","offline.arm","offline.kill","offline.settle"].includes(String(input.action))) args.p_request_id = String(input.requestId || "");
-    const { data, error } = await auth.rpc(rpc, args);
-    if (error) {
-      const message = `${error.code || ""} ${error.message || ""} ${error.details || ""}`;
-      if (/SESSION_(REPLACED|REQUIRED|EXPIRED)|INVALID_SESSION/i.test(message)) return reply({ error: "SESSION_REPLACED" }, 409);
-      if (/OFFLINE_PASS_REQUIRED|OFFLINE_PASS_EXPIRED/i.test(message)) return reply({ error: "OFFLINE_PASS_REQUIRED" }, 403);
-      if (/CHECKPOINT_CONFLICT/i.test(message)) return reply({ error: "CHECKPOINT_CONFLICT" }, 409);
-      return reply({ error: "OFFLINE_ACTION_FAILED", code:error.code, message:error.message }, 400);
-    }
-    return reply(isRecord(data) ? data : { result:data });
   }
 
   if (input.action === "checkpoint.read") {
@@ -285,10 +199,8 @@ Deno.serve(async (request) => {
     const { data: previous, error: previousError } = await getCheckpoint(character.id);
     if (previousError) return reply({ error: "CHECKPOINT_READ_FAILED" }, 500);
     const revision = int(previous?.revision);
-    // Do not reject an older revision here.  It may be a same-request retry,
-    // which checkpoint_save must replay after the first commit.  The SQL RPC
-    // holds the row lock and is the sole authority for conflict/replay.
-    if (previous?.saved_at && givenRevision === revision && Date.now() - Date.parse(String(previous.saved_at)) < 2500) return reply({ error: "SAVE_TOO_FAST" }, 429);
+    if (previous && givenRevision !== revision) return reply({ error: "CHECKPOINT_CONFLICT", revision }, 409);
+    if (previous?.saved_at && Date.now() - Date.parse(String(previous.saved_at)) < 2500) return reply({ error: "SAVE_TOO_FAST" }, 429);
     const oldP = isRecord(previous?.state) && isRecord((previous.state as Record<string, unknown>).p) ? (previous.state as Record<string, unknown>).p as Record<string, unknown> : null;
     if (oldP && p) {
       const elapsed = Math.max(1, Math.min(86400, Math.floor((Date.now() - Date.parse(String(previous?.saved_at || nowIso))) / 1000)));
@@ -300,15 +212,12 @@ Deno.serve(async (request) => {
     // The SQL RPC re-validates the authenticated user, active session token and
     // revision while holding the checkpoint row lock. This prevents a replaced
     // device from committing a stale final save over the new device.
-    // The database RPC owns the final session/ownership/revision lock and
-    // idempotency decision.  There is intentionally no service-role upsert
-    // fallback: an unavailable checkpoint_save must fail closed.
-    const { data: committed, error: commitError } = await auth.rpc("checkpoint_save", {
+    const { data: committed, error: commitError } = await auth.rpc("secure_save_character_checkpoint", {
       p_session_token: String(input.sessionToken),
       p_character_id: character.id,
-      p_expected_revision: givenRevision,
-      p_request_id: String(input.requestId),
+      p_revision: givenRevision,
       p_state: state,
+      p_request_id: String(input.requestId),
     });
     if (commitError) {
       const detail = `${commitError.message || ""} ${commitError.details || ""}`;
@@ -318,7 +227,7 @@ Deno.serve(async (request) => {
       return reply({ error: "CHECKPOINT_WRITE_FAILED" }, 500);
     }
     const nextRevision = int((committed as Record<string, unknown> | null)?.revision, revision + 1);
-    return reply({ state, revision: nextRevision });
+    return reply({ revision: nextRevision });
   }
 
   if (input.action === "world.send") {
@@ -379,7 +288,7 @@ Deno.serve(async (request) => {
     if (!checkpoint || !isRecord(checkpoint.state) || !isRecord(checkpoint.state.p)) return reply({ error: "CHARACTER_NEEDS_FIRST_SAVE" }, 409);
     const state = jsonClone(checkpoint.state) as Record<string, unknown>; const p = state.p as Record<string, unknown>;
     if (input.action === "gm.character.apply") {
-      if (!isRecord(input.base) || int(input.level, -1) < 1 || int(input.level) > 75 || int(input.gold, -1) < 0) return reply({ error: "INVALID_CHARACTER_VALUES" }, 400);
+      if (!isRecord(input.base) || int(input.level, -1) < 1 || int(input.level) > 99 || int(input.gold, -1) < 0) return reply({ error: "INVALID_CHARACTER_VALUES" }, 400);
       const base: Record<string, number> = {}; for (const key of ["str","dex","con","int","wis","cha"]) { const value = int(input.base[key], -1); if (value < 0 || value > 99) return reply({ error: "INVALID_STATS" }, 400); base[key] = value; }
       p.gold = int(input.gold); p.lv = int(input.level); p.exp = 0; p.base = base;
     }
@@ -391,22 +300,11 @@ Deno.serve(async (request) => {
     }
     if (input.action === "gm.skills.learn") { if (!Array.isArray(input.skills)) return reply({ error: "INVALID_SKILLS" }, 400); p.skills = [...new Set(input.skills.filter((skill) => typeof skill === "string" && skill.length <= 100))]; }
     if (input.action === "gm.collections.complete") { if (!isRecord(input.collections)) return reply({ error: "INVALID_COLLECTIONS" }, 400); for (const key of ["equipDex","miscDex","cardDex","relicDex"]) if (isRecord(input.collections[key])) p[key] = input.collections[key]; }
-    // GM is privileged, but must still never perform an unconditional
-    // checkpoint upsert: a concurrent warehouse/market action may have
-    // advanced this character after the read above.  The revision predicate
-    // makes the administrative write fail closed instead of restoring an old
-    // state over a server-side asset transfer.
     const nextRevision = int(checkpoint.revision) + 1;
-    const { data: written, error } = await admin.from("character_checkpoints")
-      .update({ revision: nextRevision, state, saved_at: nowIso })
-      .eq("character_id", character.id)
-      .eq("revision", int(checkpoint.revision))
-      .select("revision")
-      .maybeSingle();
+    const { error } = await admin.from("character_checkpoints").upsert({ character_id: character.id, revision: nextRevision, state, saved_at: nowIso }, { onConflict: "character_id" });
     if (error) return reply({ error: "GM_WRITE_FAILED" }, 500);
-    if (!written) return reply({ error: "CHECKPOINT_CONFLICT" }, 409);
     await admin.from("gm_audit_log").insert({ actor_id: user.id, character_id: character.id, action: String(input.action), details: { character_name: character.name } });
-    return reply({ state, revision: nextRevision });
+    return reply({ revision: nextRevision });
   }
   return reply({ error: "UNKNOWN_ACTION" }, 400);
 });
