@@ -1451,7 +1451,7 @@ function _updateUIImpl() {
     document.getElementById('st-ac').innerText = player.d.ac;
     document.getElementById('st-mr').innerText = player.d.mr;
     document.getElementById('st-gold').innerText = player.gold.toLocaleString();
-    { let _sd = document.getElementById('st-sponsor-diamonds'); if (_sd) _sd.innerText = (typeof window.pandoraGetSharedDiamonds === 'function' ? window.pandoraGetSharedDiamonds() : 0).toLocaleString(); }
+    { let _sd = document.getElementById('st-sponsor-diamonds'); if (_sd) _sd.innerText = (typeof window.getSponsorDiamonds === 'function' ? window.getSponsorDiamonds() : 0).toLocaleString(); }
     
     document.getElementById('txt-hp').innerText = `${Math.floor(player.hp)}/${Math.floor(player.mhp)}`;
     document.getElementById('bar-hp').style.width = `${Math.max(0, (player.hp/player.mhp)*100)}%`;

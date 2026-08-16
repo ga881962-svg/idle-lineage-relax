@@ -637,13 +637,7 @@
         if (typeof player === 'undefined' || !player || !player.cloudCharacterId) throw new Error('請先進入角色存檔。');
         const data = await gameApi({ action:'gm.wallet.grant', characterId:player.cloudCharacterId, amount:amount });
         const balance = Math.max(0, Math.floor(Number(data.balance) || 0));
-        // 贊助商店沿用舊的共享錢包；同步它，確保角色卡與商人立即顯示同一個餘額。
-        if (typeof window.pandoraGetSharedDiamonds === 'function' && typeof window.pandoraAdjustSharedDiamonds === 'function') {
-            const current = Math.max(0, Math.floor(Number(window.pandoraGetSharedDiamonds()) || 0));
-            const delta = balance - current;
-            if (delta) window.pandoraAdjustSharedDiamonds(delta);
-            player.sponsorDiamondMigrationV2 = true;
-        }
+        if (typeof window.setOnlineSponsorWalletBalance === 'function') window.setOnlineSponsorWalletBalance(balance);
         player.sponsorDiamonds = balance;
         if (typeof saveGame === 'function') saveGame();
         if (typeof updateUI === 'function') updateUI();
@@ -693,6 +687,7 @@
     };
     window.onlineCloudSessionToken = function () { return cloudSync.sessionToken || ''; };
     window.onlineCloudCharacterId = function () { return cloudSync.characterId || ''; };
+    window.onlineAuthIsSignedIn = function () { return !!activeUser; };
     window.onlineCloudAllySnapshots = async function () {
         if (!cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
         const data = await gameApi({ action:'characters.allies', characterId:cloudSync.characterId });

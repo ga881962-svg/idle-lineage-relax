@@ -16,13 +16,35 @@
     // Pass authority is server-only.  `player.sponsorPasses` is intentionally
     // never read or written here: it may be retained in old saves for display
     // compatibility, but cannot grant a multiplier or offline permission.
-    let sponsorPassStatus = { loaded:false, loading:false, passes:{}, sponsorDiamonds:null };
+    let sponsorPassStatus = { loaded:false, loading:false, accountKey:'', passes:{}, sponsorDiamonds:null };
     function currentPlayer() { return typeof player !== 'undefined' ? player : null; }
-    // Sponsor Diamonds are the renamed shared Pandora currency.  Keep the old
-    // storage API for save-file compatibility, but show one currency everywhere.
+    function onlineAuthSignedIn() {
+        return typeof window.onlineAuthIsSignedIn === 'function' && window.onlineAuthIsSignedIn();
+    }
+    function onlineSponsorWalletReady() {
+        return typeof window.onlineCloudApi === 'function'
+            && typeof window.onlineCloudCharacterId === 'function' && !!window.onlineCloudCharacterId()
+            && typeof window.onlineCloudSessionToken === 'function' && !!window.onlineCloudSessionToken();
+    }
+    function onlineSponsorAccountKey() {
+        let p = currentPlayer();
+        return String((p && p.cloudAccountId) || (typeof window.onlineCloudCharacterId === 'function' && window.onlineCloudCharacterId()) || '');
+    }
+    function resetSponsorStatusForCurrentAccount() {
+        let key = onlineSponsorAccountKey();
+        if (key && sponsorPassStatus.accountKey && sponsorPassStatus.accountKey !== key) {
+            sponsorPassStatus = { loaded:false, loading:false, accountKey:key, passes:{}, sponsorDiamonds:null };
+        }
+        return key;
+    }
     function sponsorDiamonds() {
         let p = currentPlayer();
         if (!p) return 0;
+        if (onlineAuthSignedIn()) {
+            resetSponsorStatusForCurrentAccount();
+            return sponsorPassStatus.loaded && Number.isFinite(sponsorPassStatus.sponsorDiamonds)
+                ? Math.max(0, Math.floor(sponsorPassStatus.sponsorDiamonds)) : 0;
+        }
         if (typeof window.pandoraGetSharedDiamonds === 'function' && typeof window.pandoraAdjustSharedDiamonds === 'function') {
             // Preserve any diamonds granted by the previous GM version once.
             if (!p.sponsorDiamondMigrationV2) {
@@ -40,6 +62,7 @@
         let p = currentPlayer();
         if (!p) return { ok:false, error:'no character' };
         let amount = Math.floor(Number(delta) || 0);
+        if (onlineAuthSignedIn()) return { ok:false, error:'ONLINE_WALLET_SERVER_ONLY' };
         if (typeof window.pandoraAdjustSharedDiamonds === 'function') {
             let result = window.pandoraAdjustSharedDiamonds(amount);
             return result && result.ok ? { ok:true, value:Math.max(0, Number(result.diamonds) || 0) } : { ok:false, error:(result && result.error) || 'insufficient sponsor diamonds' };
@@ -52,20 +75,20 @@
     window.getSponsorDiamonds = sponsorDiamonds;
     window.adjustSponsorDiamonds = adjustSponsorDiamonds;
     function offlineOnlineReady() {
-        return typeof window.onlineCloudApi === 'function'
-            && typeof window.onlineCloudCharacterId === 'function' && !!window.onlineCloudCharacterId()
-            && typeof window.onlineCloudSessionToken === 'function' && !!window.onlineCloudSessionToken();
+        return onlineSponsorWalletReady();
     }
     async function refreshSponsorPasses() {
         if (sponsorPassStatus.loading || !offlineOnlineReady()) return sponsorPassStatus;
+        const accountKey = resetSponsorStatusForCurrentAccount();
         sponsorPassStatus.loading = true;
         try {
             const result = await window.onlineCloudApi({
                 action:'sponsor.pass.status', characterId:window.onlineCloudCharacterId(),
                 requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : ''
             });
+            if (accountKey !== onlineSponsorAccountKey()) return sponsorPassStatus;
             sponsorPassStatus = {
-                loaded:true, loading:false,
+                loaded:true, loading:false, accountKey:accountKey,
                 passes:(result && result.passes && typeof result.passes === 'object') ? result.passes : {},
                 sponsorDiamonds:Number((result && result.sponsorDiamonds) || 0)
             };
@@ -75,6 +98,14 @@
         }
         return sponsorPassStatus;
     }
+    window.setOnlineSponsorWalletBalance = function (balance) {
+        if (!onlineSponsorWalletReady()) return;
+        const accountKey = resetSponsorStatusForCurrentAccount();
+        sponsorPassStatus = Object.assign({}, sponsorPassStatus, {
+            loaded:true, loading:false, accountKey:accountKey,
+            sponsorDiamonds:Math.max(0, Math.floor(Number(balance) || 0))
+        });
+    };
     function untilFor(kind) {
         return sponsorPassStatus.loaded ? (Date.parse(sponsorPassStatus.passes[kind]) || 0) : 0;
     }
@@ -116,7 +147,7 @@
         if (!offlineOnlineReady()) { if (typeof logSys === 'function') logSys('<span class="text-red-300">請先登入雲端帳號後再購買贊助券。</span>'); return; }
         try {
             const result = await window.onlineCloudApi({ action:'sponsor.pass.purchase', characterId:window.onlineCloudCharacterId(), kind:kind, requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : '' });
-            sponsorPassStatus.sponsorDiamonds = Number(result.sponsorDiamonds || 0);
+            sponsorPassStatus.sponsorDiamonds = Math.max(0, Math.floor(Number(result.sponsorDiamonds) || 0));
             sponsorPassStatus.passes = Object.assign({}, sponsorPassStatus.passes, (function(){ let p={}; p[kind]=String(result.expiresAt || ''); return p; }()));
             sponsorPassStatus.loaded = true;
             if (typeof logSys === 'function') logSys('<span class="text-amber-300 font-bold">贊助使者：已購買 ' + pass.name + '，目前 ' + remaining(kind) + '。</span>');
@@ -135,13 +166,16 @@
         if (typeof window.refreshProfileProgress === 'function') window.refreshProfileProgress();
     }
     window.ensureTownSponsorMerchants();
-    // 08-items-equip.js loads before the shared-market module. Refresh once
-    // after both modules are available so the profile card never briefly keeps 0.
     setTimeout(function () {
-        sponsorDiamonds();
-        if (typeof updateUI === 'function') updateUI();
+        if (offlineOnlineReady()) refreshSponsorPasses().then(function () { if (typeof updateUI === 'function') updateUI(); });
+        else if (typeof updateUI === 'function') updateUI();
     }, 0);
-    setInterval(renderStatusRates, 750);
+    setInterval(function () {
+        if (offlineOnlineReady() && !sponsorPassStatus.loaded && !sponsorPassStatus.loading) {
+            refreshSponsorPasses().then(function () { if (typeof updateUI === 'function') updateUI(); });
+        }
+        renderStatusRates();
+    }, 750);
     function refreshTownCardIfNeeded() {
         window.ensureTownSponsorMerchants();
         try {
