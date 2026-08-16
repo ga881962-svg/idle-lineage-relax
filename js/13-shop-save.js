@@ -1302,7 +1302,7 @@ function startGame() {
     player.enSeed = 'es' + uid() + uid();   // 🎲 強化決定論種子（創角產生一次、存進存檔永久固定）：讓強化成敗由種子決定、不可用 save/load 刷
     player._roleEpoch = _roleEpoch();        // 🛡️ 角色世代：刪除後舊分頁不得把同欄位的舊角色寫回
     if (typeof clanSyncCurrentPlayer === 'function') clanSyncCurrentPlayer();   // 同模式已有血盟時，新角色自動成為成員。
-    player.expMigV = 3;   // ⚠️ 新角色天生使用最新經驗刻度（Lv70+ 同級怪等比例曲線）→ 標記免遷移
+    player.expMigV = 4;   // 新角色天生使用目前分段休閒經驗曲線，免除進度換算。
 
     let b = createBase[curCreate.cls];
     player.base = { str: b.str+curCreate.str, dex: b.dex+curCreate.dex, con: b.con+curCreate.con, int: b.int+curCreate.int, wis: b.wis+curCreate.wis, cha: b.cha+curCreate.cha };
@@ -1829,6 +1829,20 @@ function loadGame() {
             player.exp = _mig3(player.lv, player.exp);
             (player.allies || []).forEach(a => { if (a) a.exp = _mig3(a.lv, a.exp); });
             player.expMigV = 3;
+        }
+        // v4：分段降低 Lv1–69 升級需求。保留角色與出戰傭兵在當前等級的
+        // 進度百分比，避免更新後因需求下降而意外升級或看似歸零。
+        if ((player.expMigV || 0) < 4) {
+            let _mig4 = (lv, exp) => {
+                lv = Math.max(1, Math.min(PLAYER_LEVEL_CAP, Math.floor(lv || 1)));
+                if (lv >= PLAYER_LEVEL_CAP) return 0;
+                let o = getExpReqV3(lv), n = getExpReq(lv);
+                if (!isFinite(o) || !isFinite(n) || o <= 0) return 0;
+                return Math.min(Math.floor(Math.max(0, exp || 0) / o * n), n - 1);
+            };
+            player.exp = _mig4(player.lv, player.exp);
+            (player.allies || []).forEach(a => { if (a) a.exp = _mig4(a.lv, a.exp); });
+            player.expMigV = 4;
         }
         // 🏛️ v3.0.83 傳統模式已取消：舊傳統角色一次性併入對應基礎模式（一般+傳統→一般、經典+傳統→經典）。
         //   共用倉庫/圖鑑桶另由 js/12 _mergeTradBuckets 於頁面載入時合併（'_tradonly'→''、'_trad'→'_classic'）。
