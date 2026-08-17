@@ -4412,15 +4412,28 @@ button.classic-skill-cell { cursor:pointer; }
   #mobile-vitals { padding-right:14px !important; }
   #mobile-vitals .mv-diamond { margin-right:5px; }
 
-  /* Settings use natural height first. Its own body scrolls only after it
-     actually exceeds the available phone viewport. */
+  /* Settings stay natural when they fit.  When they exceed the usable phone
+     area, this body is the sole scroll viewport, ending above the fixed nav. */
   #game-screen[data-mobile-page="settings"] #col-left { min-height:0 !important; }
-  #game-screen[data-mobile-page="settings"] #left-automation-panel { overflow:visible !important; }
+  #game-screen[data-mobile-page="settings"] #left-automation-panel {
+    display:flex !important;
+    flex-direction:column !important;
+    min-height:0 !important;
+    overflow:hidden !important;
+  }
   #game-screen[data-mobile-page="settings"] #left-automation-content {
-    max-height:calc(100dvh - env(safe-area-inset-top, 0px) - 132px) !important;
+    min-height:0 !important;
+    max-height:calc(100dvh - env(safe-area-inset-top, 0px) - 236px) !important;
+    overflow-x:hidden !important;
     overflow-y:auto !important;
     overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+    scrollbar-color:#8b6a2c #111827;
   }
+  #game-screen[data-mobile-page="settings"] #left-automation-content::-webkit-scrollbar { width:7px; }
+  #game-screen[data-mobile-page="settings"] #left-automation-content::-webkit-scrollbar-thumb { border-radius:999px; background:#8b6a2c; }
+  #game-screen[data-mobile-page="settings"] #left-automation-content::-webkit-scrollbar-track { background:#111827; }
   #game-screen[data-mobile-page="settings"] #tab-automation {
     height:auto !important;
     min-height:0 !important;
