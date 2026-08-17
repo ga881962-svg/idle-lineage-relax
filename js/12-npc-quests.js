@@ -141,13 +141,15 @@ let _whLoadUids = null;
 //   合法回歸（領出後又存回同 uid＝本次新增·不在 _whLoadUids）→ 解除墓碑並保留，不會誤刪。上限 400 筆淘汰最舊（uid=隨機9碼不重用）。
 function _whTombsRead(){ try { let raw = _lzGet(whKey() + '_rm'); if (raw == null || raw === '') return {}; let o = JSON.parse(raw); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch(e){ return {}; } }
 function _whTombsWrite(t){ try { let ks = Object.keys(t); if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(k => delete t[k]); _lzSet(whKey() + '_rm', JSON.stringify(t)); } catch(e){} }
-function loadWarehouse(){
-    // Signed-in builds intentionally never read the legacy localStorage bucket
-    // as a balance source. It may be stale relative to a transfer performed by
-    // another character. The small in-memory cache is display-only and is
-    // refreshed from warehouse.status; every mutation still goes to the RPC.
-    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) {
-        if (window.__serverWarehouse) return { items: Array.isArray(window.__serverWarehouse.items) ? window.__serverWarehouse.items : [], gold: Number(window.__serverWarehouse.gold) || 0 };
+function onlineWarehouseClientMode(){
+    return typeof window !== 'undefined' && typeof window.onlineAuthIsSignedIn === 'function' && window.onlineAuthIsSignedIn();
+}
+function loadWarehouse(allowOnlineLegacyMigration){
+    // Signed-in play never reads the legacy local bucket as a warehouse source.
+    // The sole exception is the explicitly requested one-time migration payload,
+    // after the server has already returned migrationRequired.
+    if (onlineWarehouseClientMode() && !allowOnlineLegacyMigration) {
+        if (window.__serverWarehouse) return { items: JSON.parse(JSON.stringify(Array.isArray(window.__serverWarehouse.items) ? window.__serverWarehouse.items : [])), gold: Number(window.__serverWarehouse.gold) || 0 };
         if (!window.__serverWarehouseLoading) {
             window.__serverWarehouseLoading = true;
             window.onlineCloudWarehouseStatus().then(w => { if (w && w.authoritative) window.__serverWarehouse = w; window.__serverWarehouseLoading = false; try { renderWarehouseNPC(document.getElementById('interaction-content')); } catch(e) {} }).catch(() => { window.__serverWarehouseLoading = false; });
@@ -173,7 +175,7 @@ function saveWarehouse(w){
     // Once Phase 1 is authoritative, localStorage remains only a recovery
     // backup.  No caller (including a legacy crafting/NPC path) may overwrite
     // the account warehouse with an in-memory copy.
-    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) return false;
+    if (onlineWarehouseClientMode()) return false;
     let key = whKey();
     // 安全網 A：上一次讀取失敗（桶存在卻解不開）→ 絕不用可能是空的資料覆蓋還救得回的位元組；先一次性備份原始值再拒寫並警告。
     if(_whLoadOk === false){
@@ -403,7 +405,7 @@ function whTxnCommit(w, snap){
 }
 // 一鍵存入：背包中「與倉庫現有物品 詞綴+名字+強化值 完全相同」者自動存入（鎖定物品保護、不可存物品略過）
 function whOneClickDeposit(){
-    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) {
+    if (onlineWarehouseClientMode()) {
         if (typeof logSys === 'function') logSys('<span class="text-yellow-300">Server warehouse does not support batch deposit yet.</span>');
         return;
     }
@@ -434,6 +436,12 @@ function whOneClickDeposit(){
 }
 // 🔧 倉庫一鍵排列：規則與背包「一鍵排列」完全相同（共用 invSortCmp）
 function sortWarehouse(){
+    if (onlineWarehouseClientMode()) {
+        window.__serverWarehouseViewSorted = true;
+        let el = document.getElementById('interaction-content'); if (el) renderWarehouseNPC(el);
+        logSys('<span class="text-cyan-300">已依排序規則調整目前畫面；伺服器倉庫資料未被修改。</span>');
+        return;
+    }
     let w = loadWarehouse();
     if(!w.items.length){ logSys('<span class="text-slate-400">倉庫沒有物品可排列。</span>'); return; }
     w.items.sort(invSortCmp);
@@ -445,7 +453,7 @@ function whDeposit(uidv, qty){
     // In signed-in play, the DB transaction is the only authority.  Never
     // mutate the local shared bucket first: that was the A→B→A duplication
     // path when an old character checkpoint later saved its old inventory.
-    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) {
+    if (onlineWarehouseClientMode()) {
         let it = player.inv.find(i => i.uid === uidv); if (!it) return;
         let total = it.cnt || 1; if(qty === undefined){ let q=_whQtyVal(); qty=q>0?q:total; }
         return window.onlineCloudWarehouseTransfer({ direction:'deposit', asset:'item', itemUid:uidv, quantity:Math.max(1,Math.min(total,qty||total)) })
@@ -480,7 +488,7 @@ function whDeposit(uidv, qty){
     renderWarehouseNPC(document.getElementById('interaction-content'));
 }
 function whWithdraw(uidv, qty){
-    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) {
+    if (onlineWarehouseClientMode()) {
         let it = (window.__serverWarehouse && window.__serverWarehouse.items || []).find(i => i.uid === uidv); if (!it) return;
         let total = it.cnt || 1; if(qty === undefined){ let q=_whQtyVal(); qty=q>0?q:total; }
         return window.onlineCloudWarehouseTransfer({ direction:'withdraw', asset:'item', itemUid:uidv, quantity:Math.max(1,Math.min(total,qty||total)) })
@@ -519,7 +527,7 @@ function whWithdraw(uidv, qty){
     renderWarehouseNPC(document.getElementById('interaction-content'));
 }
 function whGold(dir){
-    if (typeof window !== 'undefined' && typeof window.onlineCloudWarehouseActive === 'function' && window.onlineCloudWarehouseActive()) {
+    if (onlineWarehouseClientMode()) {
         let amt = parseInt(document.getElementById('wh-gold-amt').value) || 0; if (amt <= 0) return;
         return window.onlineCloudWarehouseTransfer({ direction:dir === 'in' ? 'deposit' : 'withdraw', asset:'gold', quantity:amt })
           .then(r => { window.__serverWarehouse = r.warehouse; updateUI(); renderWarehouseNPC(document.getElementById('interaction-content')); })
@@ -546,6 +554,7 @@ function renderWarehouseNPC(div){
     let _searching = _whSearchActive();
     let _invItems = player.inv.filter(it => !it.lock && (_searching ? whMatchSearch(it) : whMatchFilter(it.id)));   // 🔒 鎖定物品不顯示於倉庫存放清單（用戶要求：鎖定物品存放時不顯示）
     let _whItems  = w.items.filter(it => _searching ? whMatchSearch(it) : whMatchFilter(it.id));
+    if (onlineWarehouseClientMode() && window.__serverWarehouseViewSorted) _whItems = _whItems.slice().sort(invSortCmp);
     let invHtml = _invItems.length ? _invItems.map(it => WH_NO_STORE.includes(it.id)
         ? `<div data-tip-uid="${it.uid}" data-tip-src="inv" class="tip-host w-full text-left py-1.5 px-2 text-sm bg-slate-900/60 border border-slate-700 rounded opacity-50 cursor-not-allowed">${getItemFullName(it)} <span class="text-xs text-red-400">（不可存）</span></div>`
         : mkBtn(it, 'whDeposit')).join('') : `<div class="text-slate-500 text-sm text-center py-4">${_searching ? '背包沒有符合搜尋的物品' : '此分類背包沒有物品'}</div>`;
