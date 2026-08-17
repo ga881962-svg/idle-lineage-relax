@@ -2132,26 +2132,16 @@ const TOWN_NPC_POS_OVERRIDE = {
     town_pride: { _pride_entrance: [49, 58] },                          // 新增公會後仍維持原入口告示位置
     town_rift: { _rift_entrance: [48, 58] }                             // 新增公會後仍維持原入口告示位置
 };
-// 每個安全區都提供同一個隊員管理入口。既有公會不動；缺少者在地圖初始化時補入，避免把同一份 NPC 資料散落到各城鎮清單。
-const ALLY_GUILD_TOWN_SPOTS = {
-    town_silver_knight: [70, 72], town_windwood_castle: [31, 70], town_talking: [43, 52], town_elf: [75, 78],
-    town_gludio: [72, 60], town_giran: [75, 68], town_aden: [48, 84], town_elder_council: [74, 70],
-    town_pride: [31, 75], town_rift: [66, 46], town_ivory_tower: [68, 84], town_witon: [64, 58],
-    town_sherine: [28, 72], town_silent: [64, 74], town_hyperia: [73, 65], town_behemoth: [75, 52],
-    town_flame_audience: [65, 74], town_pirate_village: [28, 70]
-};
-function ensureTownAllyGuilds() {
+// 傭兵公會暫時完全不在村莊提供入口。保留系統與資料，僅在地圖初始化
+// 時移除所有 type:ally NPC，日後重新開放時可獨立恢復入口。
+function removeTownAllyGuildEntrances() {
     if (!DB || !DB.towns) return;
-    Object.keys(ALLY_GUILD_TOWN_SPOTS).forEach(townId => {
-        let town = DB.towns[townId];
-        if (!town || !Array.isArray(town.npcs) || town.npcs.some(npc => npc && npc.type === 'ally')) return;
-        let id = 'npc_ally_' + townId.replace(/^town_/, '');
-        town.npcs.push({ id:id, n:'傭兵公會', title:'協力', type:'ally', d:'傭兵公會替你牽起命運的絲線，召喚其他存檔位的角色一起作戰，並可管理出戰隊員的裝備與專屬任務。' });
-        let overrides = TOWN_NPC_POS_OVERRIDE[townId] || (TOWN_NPC_POS_OVERRIDE[townId] = {});
-        overrides[id] = ALLY_GUILD_TOWN_SPOTS[townId];
+    Object.values(DB.towns).forEach(town => {
+        if (!town || !Array.isArray(town.npcs)) return;
+        town.npcs = town.npcs.filter(npc => !(npc && npc.type === 'ally'));
     });
 }
-ensureTownAllyGuilds();
+removeTownAllyGuildEntrances();
 function _townNpcLayout(n, townId) {
     if (n <= 0) return [];
     let spots = TOWN_NPC_SPOTS[townId];
