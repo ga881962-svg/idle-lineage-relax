@@ -1494,7 +1494,13 @@ function _updateUIImpl() {
         let _tags = document.getElementById('profile-buff-tags');
         if (_tags) {
             let _active = Object.keys(player.buffs || {}).filter(k => Number(player.buffs[k]) > 0).slice(0, 5);
-            _tags.innerHTML = _active.map(k => `<span>${(DB.skills[k] && DB.skills[k].n) || k}</span>`).join('');
+            // UI labels must never expose internal buff keys (for example
+            // "blue" or "poly") to the player. Skills provide their own
+            // display name; potion/system buffs use the canonical name map.
+            _tags.innerHTML = _active.map(k => {
+                const label = (DB.skills[k] && DB.skills[k].n) || (typeof BUFF_NAMES !== 'undefined' && BUFF_NAMES[k]) || '';
+                return label ? `<span class="profile-buff-tag">${label}</span>` : '';
+            }).filter(Boolean).join(' ');
         }
     } catch (e) {}
     try { if (typeof renderSquadPanel === 'function') renderSquadPanel(); } catch (e) {}   // 🤝 協力傭兵隊伍面板：每幀同步血/魔/經驗條（名單變動才重建結構）

@@ -4206,3 +4206,64 @@ button.classic-skill-cell { cursor:pointer; }
 .offline-hunt-settlement-note{padding:10px;border-left:3px solid #22d3ee;background:rgba(8,145,178,.12)}.offline-hunt-settlement-note.is-warning{border-color:#f59e0b;background:rgba(245,158,11,.12)}
 .offline-hunt-settlement-confirm{width:100%;margin-top:12px;padding:12px;border:1px solid #d69e2e;border-radius:10px;background:linear-gradient(135deg,#a16207,#713f12);color:#fff;font-weight:700;cursor:pointer}
 @media(max-width:520px){.offline-hunt-settlement-modal{padding:12px}.offline-hunt-settlement-card{padding:20px 16px;border-radius:13px}.offline-hunt-settlement-card h2{font-size:1.3rem}}
+
+/* Mobile battle layout: visual containment only. Combat state and mechanics
+   remain untouched. */
+@media (max-width:700px) {
+  #game-screen {
+    padding-bottom:calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+    scroll-padding-bottom:calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Header has two compact rows: identity/combat stats, then account money. */
+  #mobile-vitals .mv-summary {
+    display:grid;
+    grid-template-columns:minmax(0, 1fr) auto auto;
+    align-items:center;
+    gap:4px 8px;
+    white-space:normal;
+  }
+  #mobile-vitals .mv-summary strong { min-width:0; max-width:none; }
+  #mobile-vitals .mv-summary > span { min-width:0; white-space:nowrap; }
+  #mobile-vitals .mv-money,
+  #mobile-vitals .mv-diamond { font-size:12px; }
+
+  /* A stable, clipped stage prevents sprite size and floating hit numbers from
+     pushing controls below it or painting over the header. */
+  #game-screen[data-mobile-page="battle"] #battle-view.area-fit:not(.hidden),
+  #game-screen[data-mobile-page="battle"] #battle-view:not(.area-fit):not(.hidden) {
+    height:clamp(270px, 74vw, 360px) !important;
+    min-height:clamp(270px, 74vw, 360px) !important;
+    aspect-ratio:auto !important;
+    overflow:hidden !important;
+    contain:layout paint;
+  }
+  #game-screen[data-mobile-page="battle"] #battle-view #mob-list,
+  #game-screen[data-mobile-page="battle"] #battle-view #status-icon-bar { max-height:100%; }
+
+  /* Keep controls compact; page-level safe-area padding owns the bottom gap. */
+  #game-screen[data-mobile-page="battle"] #mobile-battle-controls {
+    padding:8px 10px 9px !important;
+  }
+  #mobile-battle-controls .mbc-scroll-options { gap:5px; margin-bottom:6px; }
+  #mobile-battle-controls .mbc-scroll-options label { min-height:30px; padding:5px 8px; font-size:13px; }
+  #mobile-battle-controls input { width:18px; height:18px; }
+  #mobile-battle-controls .mbc-potion-row { grid-template-columns:minmax(0,1fr) 96px; gap:7px; }
+  #mobile-battle-controls .mbc-potion-info { min-height:48px; padding:6px 9px; font-size:14px; }
+  #mobile-battle-controls .mbc-potion-icon { font-size:23px; }
+  #mbc-potion-count { font-size:16px; }
+  #mbc-drink-button, #mbc-teleport-spell { min-height:48px; border-width:1px; font-size:16px; }
+  #mbc-teleport-spell { margin-top:7px; }
+  #mobile-battle-controls .mbc-status-text {
+    min-height:0;
+    margin-top:7px;
+    padding:7px 9px;
+    line-height:1.35;
+  }
+
+  /* Controls precede the compact realtime grid with no artificial blank area. */
+  #mobile-live-panel { padding:10px 12px 12px; }
+  #mobile-live-panel h3 { margin-bottom:6px; font-size:15px; }
+  .mobile-live-grid { gap:5px 12px; font-size:13px; }
+  .mobile-live-buffs { margin-top:7px; }
+}

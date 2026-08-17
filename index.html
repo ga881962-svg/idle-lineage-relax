@@ -21,7 +21,7 @@
     <title>放置天堂－休閒養老</title>
     <link rel="icon" type="image/png" href="https://storage.googleapis.com/idle-lineage-relax-assets-asia-2026/assets/favicon.png">   <!-- 🖼️ 瀏覽器分頁圖示(favicon)：把你的圖放到 assets/favicon.png 即生效；可改 href 路徑或副檔名(.ico/.svg) -->
 
-    <link rel="stylesheet" href="css/style.css?v=v3.8.91-equipment-list-overlay-fix">
+    <link rel="stylesheet" href="css/style.css?v=v3.8.95-mobile-battle-layout">
     <link rel="stylesheet" href="css/floating-ui.css?v=v3.5.100-audit-tail">
     <link rel="stylesheet" href="css/tailwind-built.css"><!-- 🔧 預編譯 Tailwind（取代執行期 JIT tailwind.js）：只含實際用到的 class，省 407KB runtime + 移除持續掃描 DOM 的成本。置於 style.css 之後以保留原 cascade（utility 平手時勝過自訂 class，與舊 JIT 注入順序一致） -->
 </head>
@@ -625,7 +625,7 @@
 <script src="js/34-map-drop-browser.js?v=v3.8.54-boss-panacea-unified"></script>
     <script src="js/06-status-allies.js?v=v3.8.26-flywing-relics"></script>
     <script src="js/07-skills-cast.js?v=v3.8.26-flywing-relics"></script>
-<script src="js/08-items-equip.js?v=v3.8.93-sponsor-wallet-server-only"></script>
+<script src="js/08-items-equip.js?v=v3.8.95-mobile-battle-layout"></script>
 <script src="js/09-vfx-render.js?v=v3.8.79-hero-slash-motion"></script>
 <script src="js/10-ui-tabs.js?v=v3.8.65-equipment-stat-tooltips"></script>
 <script src="js/11-world-map.js?v=v3.8.94-offline-canonical-rollout"></script>
@@ -745,7 +745,10 @@ function mobileBattleControlsSync() {
   if (teleport) teleport.classList.toggle('hidden', !learnedTeleport);
   var status = document.getElementById('mbc-status-text');
   var buffs = document.getElementById('profile-buff-tags');
-  if (status) status.innerHTML = buffs && buffs.innerHTML.trim() ? '狀態：' + buffs.innerHTML : '狀態：正常';
+  // Keep the mobile status line text-only. Copying desktop innerHTML here
+  // previously leaked markup/internal buff keys and could grow the box.
+  var buffText = buffs ? buffs.textContent.trim().replace(/\s+/g, ' ') : '';
+  if (status) status.textContent = buffText ? '狀態：' + buffText : '狀態：正常';
 }
 function mobileBattleDrinkPotion() {
   if (typeof player === 'undefined' || !player) return;
