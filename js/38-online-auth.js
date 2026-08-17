@@ -120,19 +120,27 @@
     function isSessionError(error) {
         return /SESSION_REPLACED|SESSION_REQUIRED|INVALID_SESSION|SESSION_EXPIRED/i.test(sessionErrorCode(error));
     }
+    function sessionDiagnosticCode(error) {
+        var match = sessionErrorCode(error).match(/SESSION_REPLACED|SESSION_REQUIRED|INVALID_SESSION|SESSION_EXPIRED/i);
+        return match ? match[0].toUpperCase() : 'UNKNOWN_SESSION_ERROR';
+    }
     function removeSessionOverlay() {
         var old = document.getElementById('online-session-lock');
         if (old) old.remove();
     }
-    function showSessionOverlay(mode) {
+    function showSessionOverlay(code) {
         removeSessionOverlay();
+        var title = code === 'SESSION_REPLACED' ? '此帳號已在其他裝置登入' : '線上工作階段已中止';
+        var detail = code === 'SESSION_REPLACED'
+          ? '此帳號的工作階段已被另一個登入取代。'
+          : '請重新登入；若持續發生，請提供下方診斷代碼。';
         var overlay = document.createElement('div');
         overlay.id = 'online-session-lock';
         overlay.className = 'online-session-lock';
         overlay.innerHTML = '<section class="online-session-lock-card" role="dialog" aria-modal="true">'
           + '<div class="online-session-lock-icon">🔒</div>'
-          + '<h2>此帳號已在其他裝置登入</h2>'
-          + '<p>這個畫面已停止遊戲操作、存檔與交易，並已安全登出。</p>'
+          + '<h2>' + title + '</h2>'
+          + '<p>' + detail + '<br><small>診斷代碼：' + code + '</small></p>'
           + '<button class="online-session-logout" type="button" onclick="window.onlineSessionLogout()">登出／改用其他帳號</button>'
           + '</section>';
         document.body.appendChild(overlay);
@@ -193,14 +201,15 @@
         if (typeof window.onlineWorldChatReset === 'function') window.onlineWorldChatReset();
         cloudSync.sessionToken = null;
         cloudSync.sessionUserId = null;
-        var reason = '此帳號已在另一台裝置登入，目前裝置已被登出。';
+        var code = sessionDiagnosticCode(error);
+        window.__idleSessionFailure = code;
         // Use local sign-out only: a global Supabase sign-out would also
         // invalidate the new device's Auth session.
         try { if (client) await client.auth.signOut({ scope:'local' }); } catch (_) {}
         activeUser = null;
-        removeSessionOverlay();
         resetToSignedOutShell();
-        message('此帳號已在其他裝置登入', 'error');
+        showSessionOverlay(code);
+        message('線上工作階段已中止：' + code, 'error');
         cloudSync.kicking = false;
     }
     async function openGameSession(user) {
