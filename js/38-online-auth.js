@@ -708,6 +708,18 @@
         const data = await gameApi({ action:'characters.allies', characterId:cloudSync.characterId });
         return Array.isArray(data && data.characters) ? data.characters : [];
     };
+    window.onlineMercenaryGuildPassStatus = async function () {
+        if (!cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
+        return await gameApi({ action:'mercenary.guild.status', characterId:cloudSync.characterId });
+    };
+    window.onlineMercenaryGuildPassPurchase = async function () {
+        if (!cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
+        return await gameApi({ action:'mercenary.guild.purchase', characterId:cloudSync.characterId, requestId:newUuid() });
+    };
+    window.onlineMercenaryGuildAuthorize = async function () {
+        if (!cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
+        return await gameApi({ action:'mercenary.guild.authorize', characterId:cloudSync.characterId });
+    };
     window.onlineCloudSyncNow = syncCloudSave;
     window.onlineCloudRestoreCheckpoint = restoreCurrentCloudCheckpoint;
     window.onlineCloudRequestId = newUuid;

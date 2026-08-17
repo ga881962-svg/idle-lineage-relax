@@ -384,6 +384,7 @@ function summonElementDamage(dice, ele, t, flatBonus, mult, mrPen) {
 // character checkpoint.  The guild roster is only an in-memory read cache;
 // it is refreshed whenever the guild is opened and is never written back.
 let _onlineAllyRoster = { key:'', slots:Object.create(null), entries:Object.create(null), currentSlot:'', loading:null };
+let _mercenaryGuildPass = { key:'', active:false, expiresAt:null, loading:null };
 function _onlineAllyRosterKey() {
     if (typeof window === 'undefined' || typeof window.onlineAuthIsSignedIn !== 'function' || !window.onlineAuthIsSignedIn()) return '';
     let account = player && player.cloudAccountId ? String(player.cloudAccountId) : '';
@@ -433,11 +434,60 @@ async function refreshOnlineAllyRoster() {
     _onlineAllyRoster.loading = { key:key, promise:promise };
     return promise;
 }
+function _mercenaryPassKey() { return _onlineAllyRosterKey(); }
+function _setMercenaryGuildPass(key, status) {
+    if (_mercenaryPassKey() !== key) return false;
+    _mercenaryGuildPass = {
+        key:key,
+        active:!!(status && status.active),
+        expiresAt:(status && status.expiresAt) || null,
+        loading:null
+    };
+    return true;
+}
+async function refreshMercenaryGuildPass() {
+    let key = _mercenaryPassKey();
+    if (!key || typeof window.onlineMercenaryGuildPassStatus !== 'function') return false;
+    if (_mercenaryGuildPass.loading && _mercenaryGuildPass.loading.key === key) return _mercenaryGuildPass.loading.promise;
+    let promise = Promise.resolve(window.onlineMercenaryGuildPassStatus()).then(status => _setMercenaryGuildPass(key, status)).catch(() => {
+        if (_mercenaryPassKey() === key) _mercenaryGuildPass = { key:key, active:false, expiresAt:null, loading:null };
+        return false;
+    });
+    _mercenaryGuildPass.loading = { key:key, promise:promise };
+    return promise;
+}
+function mercenaryGuildPassActive() {
+    let key = _mercenaryPassKey();
+    return !key || (_mercenaryGuildPass.key === key && _mercenaryGuildPass.active);
+}
+function mercenaryGuildPassSummary() {
+    let key = _mercenaryPassKey();
+    if (!key) return '';
+    if (_mercenaryGuildPass.key !== key) return '<span class="text-slate-400">傭兵公會月卡：讀取中…</span>';
+    if (!_mercenaryGuildPass.active) return '<span class="text-rose-300">傭兵公會月卡：未啟用</span>';
+    let expiry = new Date(_mercenaryGuildPass.expiresAt);
+    let text = Number.isNaN(expiry.getTime()) ? '有效' : `有效至 ${expiry.toLocaleString('zh-TW', { hour12:false })}`;
+    return `<span class="text-emerald-300">傭兵公會月卡：${text}</span>`;
+}
+async function purchaseMercenaryGuildPass() {
+    if (!_mercenaryPassKey() || typeof window.onlineMercenaryGuildPassPurchase !== 'function') return;
+    try {
+        let status = await window.onlineMercenaryGuildPassPurchase();
+        _setMercenaryGuildPass(_mercenaryPassKey(), status);
+        if (typeof window.setOnlineSponsorWalletBalance === 'function' && status && status.sponsorDiamonds != null) window.setOnlineSponsorWalletBalance(status.sponsorDiamonds);
+        logSys('<span class="text-emerald-300 font-bold">傭兵公會月卡已啟用。</span>');
+    } catch (error) {
+        let message = String(error && (error.message || error) || 'MERCENARY_GUILD_PURCHASE_FAILED');
+        logSys(message.includes('INSUFFICIENT_SPONSOR_DIAMONDS') ? '<span class="text-red-400">贊助鑽石不足，無法購買傭兵公會月卡。</span>' : '<span class="text-red-400">傭兵公會月卡購買失敗，請稍後重試。</span>');
+    }
+    let div = document.getElementById('interaction-content'); if (div) renderAllyNPC(div);
+}
 function openAllyNPC(div) {
     let key = _onlineAllyRosterKey();
     if (!key) { renderAllyNPC(div); return; }
     div.innerHTML = '<div class="p-3 text-sm text-slate-400">正在讀取角色存檔…</div>';
-    refreshOnlineAllyRoster().then(ok => {
+    Promise.all([refreshOnlineAllyRoster(), refreshMercenaryGuildPass()]).then(results => {
+        let ok = !!results[0];
         if (key !== _onlineAllyRosterKey() || !div || !div.isConnected) return;
         if (!ok) { div.innerHTML = '<div class="p-3 text-sm text-red-300">角色存檔讀取失敗，請稍後重試。</div>'; return; }
         renderAllyNPC(div);
@@ -3669,9 +3719,20 @@ function mercExpClaimPending(_retry) {
         logSys(`<span class="text-emerald-300 font-bold">傭兵出征${claimParts.join('、')}</span>${gained > 0 ? `<span class="text-emerald-300">，升 ${gained} 級至 Lv.${player.lv}！</span>` : ''}`);
     } catch (e) {}
 }
-function toggleAlly(slotN) {
+async function toggleAlly(slotN) {
     slotN = String(slotN);
     if (!player.allies) player.allies = [];
+    if (!isAllyActive(slotN) && _mercenaryPassKey()) {
+        try {
+            let approval = await window.onlineMercenaryGuildAuthorize();
+            _setMercenaryGuildPass(_mercenaryPassKey(), approval);
+        } catch (error) {
+            _mercenaryGuildPass = { key:_mercenaryPassKey(), active:false, expiresAt:null, loading:null };
+            logSys('<span class="text-red-400">需要有效的傭兵公會月卡才能召喚傭兵。</span>');
+            let denied = document.getElementById('interaction-content'); if (denied) renderAllyNPC(denied);
+            return;
+        }
+    }
     if (isAllyActive(slotN)) {
         let _dis = player.allies.find(a => a && a._slot === slotN);
         if (_dis) snapshotMercPrefs(_dis);   // 🤝 v3.4.23 解散前記住喝水＋技能設定，供同一角色再次招募時還原
@@ -4040,6 +4101,7 @@ function renderAllyNPC(div) {
         ? `<br><span class="text-amber-300">王族魅力不影響傭兵能力；每滿 15 點魅力可多帶 1 名。目前魅力 ${_royalCha}，可同時帶 ${_activeCap}/7 名。</span>`
         : `<br><span class="text-slate-400">目前可同時帶 ${_activeCap} 名傭兵。</span>`;
     const _hiredMap = mercEmploymentMap();   // 🧑‍🤝‍🧑 v3.7.93 一次掃完全部存檔位；逐列各查一次會變成 7×7 次解壓
+    const _passActive = mercenaryGuildPassActive();
     let rows = allySlotList().map(n => {
         let sum = slotSummary(n);
         let active = isAllyActive(n);
@@ -4062,7 +4124,9 @@ function renderAllyNPC(div) {
                 ? `<span class="text-xs text-slate-500 px-2 text-right">非同模式存檔<br>不可招募</span>`
                 : _hired
                     ? `<span class="text-xs px-2 text-right" style="color:#fbbf24;" title="同一個角色同時只能受僱於一位僱主；請先由現任僱主解散。">已受僱於 ${_hired.employerName}<br>不可重複招募</span>`
-                    : `<button onclick="toggleAlly('${n}')" class="btn py-1 px-4 text-sm font-bold bg-emerald-900 border-emerald-700 text-emerald-200">召喚</button>`));
+                    : (!_passActive
+                        ? `<button disabled class="btn py-1 px-4 text-sm font-bold opacity-50 cursor-not-allowed bg-slate-800 border-slate-600 text-slate-400" title="需要有效的傭兵公會月卡">需要月卡</button>`
+                        : `<button onclick="toggleAlly('${n}')" class="btn py-1 px-4 text-sm font-bold bg-emerald-900 border-emerald-700 text-emerald-200">召喚</button>`)));
         // 🔋 出戰中傭兵剩餘資源：騎士/戰士(純物理)不顯示；龍騎士以 HP 為資源(技能吃HP)；其餘職業顯示 MP
         let _res = '';
         if (active) {
@@ -4079,7 +4143,9 @@ function renderAllyNPC(div) {
             ${_btn}
         </div>`;
     }).join('');
+    let _passPanel = _mercenaryPassKey() ? `<div class="flex flex-wrap items-center justify-between gap-2 rounded border border-violet-700/70 bg-violet-950/40 px-3 py-2 text-sm"><div>${mercenaryGuildPassSummary()}<div class="mt-1 text-xs text-slate-400">有效月卡才可召喚傭兵；與離線掛機月卡分開計算。</div></div>${_passActive ? '' : '<button onclick="purchaseMercenaryGuildPass()" class="btn py-1 px-3 text-sm font-bold bg-violet-900 border-violet-600 text-violet-100">599 鑽購買 30 天</button>'}</div>` : '';
     div.innerHTML = `<div class="flex flex-col gap-3 p-1">
+        ${_passPanel}
         <div class="text-slate-300 text-sm leading-relaxed">招募其他存檔位的角色一起作戰，<b class="text-emerald-300">完全免費</b>。協力傭兵戰鬥中不會陣亡，<b class="text-emerald-300">你死亡並回城／原地復活後仍會留在身邊，可使用各傭兵旁的「解散」或「⚠ 全員退出」</b>；存讀檔不會使其消失。法師以魔法、妖精以弓/三重矢、騎士以物理（含看破/殺戮）出手。<br><span class="text-amber-300">同一個角色同時只能受僱於一位僱主——已被其他角色招募走的存檔不會出現「召喚」按鈕，須由現任僱主先解散。</span>${_capHint}<br><span class="text-slate-400">提示：<b class="text-sky-300">每次進入安全區（含載入存檔回到村莊）都會自動刷新一次隊員資料</b>——結算各隊員累積的經驗（記入待領帳本，該角色下次載入或回村時領取）並依來源存檔的最新狀態重建戰力快照，不需要也不再有「重新招募」按鈕。點「解散」只會解除該名傭兵並結算其累積經驗。</span></div>
         ${(player.allies||[]).length ? `<div class="flex items-center justify-end gap-2">
             <button onclick="dismissAllAllies()" class="btn py-1 px-3 text-xs font-bold bg-red-950 border-red-700 text-red-200" title="解除目前全部協力傭兵（含異常卡住、找不到對應存檔的傭兵）">⚠ 全員退出（${(player.allies||[]).length}）</button>
