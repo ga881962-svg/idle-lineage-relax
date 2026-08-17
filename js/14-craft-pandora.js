@@ -1243,15 +1243,14 @@ function getWeightedGachaResult(doubleNonRare, excludeCards) {
 }
 
 // ==========================================
-// 🔧 潘朵拉黑市：一次陳列 24 件商品（桌面 3 欄 × 8 列；icon/名稱/價格/購買·能力走 tooltip）。
-//    每 10 分鐘輪換 1 格（round-robin），每件商品自上架起持續 240 分鐘（24 格 × 10 分鐘一圈）才再刷新。
-//    以遊戲 tick 計時（存讀檔保留·離線經補跑自然推進）；離線超過一圈(240分鐘)直接全面換貨。
+// 🔧 潘朵拉黑市：一次只陳列 1 件商品。
+//    商品每 10 分鐘完整刷新一次；以遊戲 tick 計時（存讀檔保留·離線經補跑自然推進）。
 //    出現機率＝原始 gachaWeight（v3.0.81 起 initGachaWeights 的 ≥50 ×2 加倍已移除）。
 // ==========================================
-const PANDORA_SLOT_COUNT = 24;
+const PANDORA_SLOT_COUNT = 1;
 const PANDORA_SLOT_TICKS = 6000;   // 10 分鐘 = 600 秒 × 10 tick/秒
-const PANDORA_LIFETIME_TICKS = PANDORA_SLOT_TICKS * PANDORA_SLOT_COUNT;   // 240 分鐘
-const PANDORA_CARD_LIMIT = 5;       // 普卡／銀卡／金卡合計最多同時佔用 5 個黑市商品格（僅限制隨機輪換；玩家收購單上架的卡片不計入也不受限）
+const PANDORA_LIFETIME_TICKS = PANDORA_SLOT_TICKS;
+const PANDORA_CARD_LIMIT = 1;
 let _pandoraDiv = null;            // 目前黑市面板容器（購買/輪換後重繪用）
 
 function pandoraMarketCardCount(market, replacingIndex) {
@@ -1352,13 +1351,38 @@ function pandoraStockBless(id) {
     return affix.bless === true;
 }
 
+function pandoraMarketEligible(id) {
+    let d = DB.items[id];
+    if (!d || d.relic || d.remains || d.doll || d.isArrow) return false;
+    return d.type === 'skillbk' || d.type === 'wpn' || d.type === 'arm' || d.type === 'acc';
+}
+
+function pandoraRollMarketItem() {
+    let totalWeight = 0;
+    let pool = [];
+    for (let id in DB.items) {
+        let d = DB.items[id];
+        if (!pandoraMarketEligible(id)) continue;
+        let weight = Number(d.gachaWeight) || 0;
+        if (weight <= 0) continue;
+        totalWeight += weight;
+        pool.push({ id: id, weight: weight });
+    }
+    let roll = lootRng('gacha') * totalWeight;
+    let cursor = 0;
+    for (let entry of pool) {
+        cursor += entry.weight;
+        if (roll <= cursor) return entry.id;
+    }
+    return pool.length ? pool[pool.length - 1].id : null;
+}
+
 // 上架一件新商品：若有收購單，先替指定物品擲一次市場價；市場價不高於喊價才命中，
 // 並以玩家喊價上架。失敗時不影響收購單，改走正常權重抽選。
-// 卡片上限只約束隨機輪換抽貨；收購單（含卡片）一律不受 PANDORA_CARD_LIMIT 影響。
+// 潘朵拉黑市不販售普卡、銀卡或金卡。
 function _pandoraStock(nowT, market, replacingIndex) {
-    let cardLimitReached = pandoraMarketCardCount(market, replacingIndex) >= PANDORA_CARD_LIMIT;
     let order = market && market.buyOrder;
-    if (order && pandoraBuyOrderAllowed(order.id) && Number.isSafeInteger(order.price) && order.price > 0) {
+    if (order && pandoraMarketEligible(order.id) && pandoraBuyOrderAllowed(order.id) && Number.isSafeInteger(order.price) && order.price > 0) {
         let rolledPrice = pandoraBuyOrderPrice(order.id);
         if (rolledPrice <= order.price) {
             let od = DB.items[order.id];
@@ -1368,7 +1392,7 @@ function _pandoraStock(nowT, market, replacingIndex) {
             return hit;
         }
     }
-    let id = getWeightedGachaResult(false, cardLimitReached);
+    let id = pandoraRollMarketItem();
     let d = DB.items[id] || {};
     return { id: id, price: pandoraPrice(id), weight: d.gachaWeight || 100, setTick: nowT, sold: false, bless: pandoraStockBless(id) };
 }
@@ -1509,15 +1533,15 @@ function _pandoraLogBuyOrder(slot) {
     logSys(`<span class="pandora-buyorder-log"><span class="text-amber-300 font-bold">📢【潘朵拉收購】</span>玩家收購物品上架了：<span class="${getItemColor(inst)}">${getItemFullName(inst)}</span>（${slot.price.toLocaleString()} 金幣）。</span>`);
 }
 
-// 黑市輪換（js/03 每 10 秒呼叫一次；force＝全面換貨）。回傳本次是否有商品刷新。
+// 黑市輪換（js/03 每 10 秒呼叫一次；force＝刷新唯一商品）。回傳本次是否有商品刷新。
 function refreshPandoraMarket(force) {
     if (typeof player === 'undefined' || !player) return false;
     let nowT = (typeof state !== 'undefined' && state) ? (state.ticks || 0) : 0;
     let m = player.pandoraMarket2;
     let changed = false, latest = null, orderHit = null;
-    let bad = !m || !Array.isArray(m.slots) || m.slots.length !== PANDORA_SLOT_COUNT || m.slots.some(s => !s || !DB.items[s.id]) || pandoraMarketCardCount(m) > PANDORA_CARD_LIMIT;
+    let bad = !m || !Array.isArray(m.slots) || m.slots.length !== PANDORA_SLOT_COUNT || m.slots.some(s => !s || !pandoraMarketEligible(s.id)) || pandoraMarketCardCount(m) > PANDORA_CARD_LIMIT;
     if (force || bad || (nowT - (m ? (m.lastTick || 0) : 0)) >= PANDORA_LIFETIME_TICKS) {
-        // 初次進場／資料損壞／離線超過一圈：全面換貨（日誌只公告最新一件，不洗版）
+        // 初次進場／資料損壞／離線超過 10 分鐘：刷新唯一商品。
         let nextMarket = {
             slots: [], seq: 0, lastTick: nowT, lastIdx: PANDORA_SLOT_COUNT - 1,
             buyOrder: m && m.buyOrder ? m.buyOrder : null,
@@ -1535,7 +1559,7 @@ function refreshPandoraMarket(force) {
         let n = 0;
         while ((nowT - m.lastTick) >= PANDORA_SLOT_TICKS && n < PANDORA_SLOT_COUNT) {
             m.lastTick += PANDORA_SLOT_TICKS;
-            let i = (m.seq || 0) % PANDORA_SLOT_COUNT;   // round-robin：每格恰好 240 分鐘輪到一次
+            let i = 0;
             m.slots[i] = _pandoraStock(nowT, m, i);
             if (m.slots[i].buyOrder) orderHit = m.slots[i];
             latest = m.slots[i]; m.lastIdx = i;
@@ -1633,40 +1657,27 @@ function pandoraTipMove(ev) {
 }
 function pandoraTipHide() { let el = document.getElementById('pandora-tooltip'); if (el) el.style.display = 'none'; }
 
-// 繪製黑市面板：24 件商品（桌面 3×8）·只顯示 icon／名稱／價格／購買·能力用 tooltip
+// 繪製黑市面板：每 10 分鐘僅顯示一件隨機商品；能力用 tooltip。
 function pandoraRenderMarket(div) {
     if (!div) return;
     _pandoraDiv = div;
     let m = player.pandoraMarket2;
-    if (!m || !Array.isArray(m.slots) || !m.slots.length) { refreshPandoraMarket(true); m = player.pandoraMarket2; }
+    if (!m || !Array.isArray(m.slots) || m.slots.length !== PANDORA_SLOT_COUNT || !m.slots.length) { refreshPandoraMarket(true); m = player.pandoraMarket2; }
     if (!m) { div.innerHTML = '<div class="p-6 text-center text-slate-300">黑市目前沒有商品，請稍候。</div>'; return; }
     let nowT = (typeof state !== 'undefined' && state) ? (state.ticks || 0) : 0;
     let nextMin = Math.max(1, Math.ceil((PANDORA_SLOT_TICKS - (nowT - (m.lastTick || 0))) / 600));
-    let order = m.buyOrder;
-    let orderItem = order && DB.items[order.id];
-    let buyerName = String(player.name || '').trim() || ({
-        royal: '王族', knight: '騎士', mage: '法師', elf: '妖精',
-        dark: '黑暗妖精', illusion: '幻術士', dragon: '龍騎士', warrior: '戰士'
-    }[player.cls] || '玩家');
-    let orderName = orderItem ? orderItem.n : '';
-    let orderPrice = order && Number.isSafeInteger(order.price) ? String(order.price) : '';
-    let relicBalance = '';
-    let relicBoard = '';
-    try {
-        if (typeof pandoraRelicBalanceHTML === 'function') relicBalance = pandoraRelicBalanceHTML();
-        if (typeof pandoraRelicBoardHTML === 'function') relicBoard = pandoraRelicBoardHTML();
-    } catch (e) {}
     let cards = m.slots.map((s, i) => {
         let d = s && DB.items[s.id]; if (!d) return '';
         let inst = { id: s.id, bless: s.bless === true };
         let rare = s.weight === 1;
         let afford = (player.gold || 0) >= s.price;
         let border = s.sold ? 'border-slate-700' : rare ? 'border-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.45)]' : 'border-slate-600';
-        // 三欄橫條：圖示｜名稱/價格｜購買鈕；卡片加寬後保留完整名稱與清楚點擊區。
+        // 單一主商品：圖示｜名稱/能力摘要｜價格｜購買。
         let btn = s.sold
             ? `<button disabled class="btn shrink-0 bg-slate-700 border-slate-600 opacity-60 cursor-not-allowed font-bold rounded pandora-card-buy">售出</button>`
             : `<button onclick="buyPandoraItem(${i})" ${afford ? '' : 'disabled'} class="btn shrink-0 ${afford ? 'bg-purple-700 hover:bg-purple-600 border-purple-500' : 'bg-slate-700 border-slate-600 opacity-60 cursor-not-allowed'} font-bold rounded pandora-card-buy">購買</button>`;
-        return `<div class="pandora-market-card rounded-md border ${border} bg-slate-900/80 flex items-center ${s.sold ? 'opacity-70' : ''}"
+        let desc = ''; try { desc = buildItemDescHTML(inst); } catch (e) {}
+        return `<div class="pandora-market-card pandora-market-single-card rounded-md border ${border} bg-slate-900/80 flex items-center ${s.sold ? 'opacity-70' : ''}"
             onmouseenter="pandoraTipShow(event,${i})" onmousemove="pandoraTipMove(event)" onmouseleave="pandoraTipHide()">
             <div class="pandora-collection-icon pandora-card-icon-wrap">
                 <img src="${getIconUrl(d)}" onerror="this.src='https://placehold.co/40x40/1e293b/ffffff?text=?';" class="pandora-card-icon object-contain ${s.sold ? 'grayscale opacity-40' : getGlowClass(inst, d)}">
@@ -1674,6 +1685,7 @@ function pandoraRenderMarket(div) {
             </div>
             <div class="min-w-0 flex-1">
                 <div class="pandora-card-name font-bold leading-none truncate ${getItemColor(inst)}">${getItemFullName(inst)}${s.buyOrder ? '<span class="pandora-order-tag">收購</span>' : ''}</div>
+                <div class="pandora-card-desc">${desc || '稀有商品'}</div>
                 <div class="pandora-card-price text-yellow-300 font-bold leading-none truncate">${s.price.toLocaleString()}<span class="text-slate-500"> 金</span></div>
             </div>
             ${btn}
@@ -1682,32 +1694,12 @@ function pandoraRenderMarket(div) {
     div.innerHTML = `
     <div class="pandora-market-panel flex flex-col h-full w-full overflow-y-auto">
         <h3 class="pandora-market-title text-center font-bold text-purple-400 drop-shadow-md leading-none shrink-0">潘朵拉黑市
-            <span class="text-slate-400 font-normal">每 10 分鐘輪換 1 件·單件持續 240 分鐘·約 ${nextMin} 分鐘後輪換｜金幣 <span class="text-yellow-300 font-bold">${(player.gold || 0).toLocaleString()}</span>${relicBalance}</span>
+            <span class="text-slate-400 font-normal">每 10 分鐘隨機上架一件商品・售價依稀有度浮動・距下次更換約 ${nextMin} 分鐘</span>
         </h3>
-        <div class="pandora-buy-box shrink-0">
-            <div class="pandora-buybar">
-                <span class="pandora-buy-word">收</span>
-                <div class="pandora-buy-name-wrap">
-                    <input id="pandora-buy-name" type="text" value="${_pandoraEsc(orderName)}" placeholder="完整物品名稱" autocomplete="off"
-                        oninput="pandoraSuggestBuyItems(this.value)" onkeydown="if(event.key==='Enter'){pandoraSetBuyOrder()}">
-                    <div id="pandora-buy-suggestions" class="pandora-buy-suggestions hidden"></div>
-                </div>
-                <span class="pandora-buy-comma">，</span>
-                <input id="pandora-buy-price" type="text" inputmode="numeric" value="${_pandoraEsc(orderPrice)}" placeholder="收購價錢" autocomplete="off"
-                    onkeydown="if(event.key==='Enter'){pandoraSetBuyOrder()}">
-                <span class="pandora-buy-word">收</span>
-                <button class="btn pandora-buy-submit font-bold" onclick="pandoraSetBuyOrder()">確認收購</button>
-            </div>
-            <div class="pandora-buy-status">
-                <span>${orderItem ? `<b class="text-amber-200">${_pandoraEsc(buyerName)}</b>：<b class="text-yellow-300">${order.price.toLocaleString()}</b> 金幣收 <b class="${getItemColor({ id: order.id })}">${_pandoraEsc(orderItem.n)}</b>，意者自行上架` : '目前沒有收購單；可指定魔法書、怪物卡片與耳環以外的穿著裝備，未指定仍依原黑市池上架。'}</span>
-                ${orderItem ? '<button class="pandora-buy-cancel" onclick="pandoraCancelBuyOrder()">取消收購</button>' : ''}
-            </div>
-        </div>
         <div class="pandora-market-grid">${cards}</div>
-        ${relicBoard}
+        <div class="pandora-market-wallet">你的金幣：<b>${(player.gold || 0).toLocaleString()}</b></div>
         <p id="pandora-msg" class="font-bold text-center shrink-0 empty:hidden">${_pandoraNoticeHTML(m)}</p>
     </div>`;
-    try { if (typeof pandoraRelicBindBoardCountdowns === 'function') pandoraRelicBindBoardCountdowns(); } catch (e) {}
 }
 
 // 購買指定格商品（上架時已決定祝福與否；售出格保持「已售出」直到該格輪換）

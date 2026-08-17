@@ -2776,6 +2776,43 @@ button.classic-skill-cell { cursor:pointer; }
     vertical-align: 1px;
 }
 #pandora-msg { min-height: 18px; margin-top: 1px; font-size: 12px; }
+
+/* 黑市只保留一件每 10 分鐘刷新商品；遺物搜尋／收購欄不在此畫面顯示。 */
+.pandora-market-panel { justify-content: flex-start; padding: 22px 16px 18px; gap: 14px; }
+.pandora-market-title { font-size: 30px; color: #b56bff; margin-top: 6px; }
+.pandora-market-title > span { display: block; max-width: 560px; margin: 9px auto 0; color: #b9b6d4; font-size: 14px; }
+.pandora-market-grid { display: block; width: min(720px, 100%); margin: 28px auto 0; }
+.pandora-market-single-card {
+    min-height: 166px;
+    gap: 18px;
+    padding: 18px;
+    border-color: #d97706 !important;
+    border-radius: 18px;
+    background: linear-gradient(110deg, rgba(28,20,35,.98), rgba(15,23,42,.96));
+    box-shadow: inset 0 1px rgba(255,214,120,.18), 0 0 0 1px rgba(124,58,237,.18);
+}
+.pandora-market-single-card .pandora-collection-icon,
+.pandora-market-single-card .pandora-card-icon { width: 116px; height: 116px; flex-basis: 116px; }
+.pandora-market-single-card .pandora-card-icon-wrap {
+    display: grid;
+    place-items: center;
+    border: 1px solid #a16207;
+    border-radius: 14px;
+    background: rgba(2,6,23,.72);
+}
+.pandora-market-single-card .pandora-card-name { font-size: 24px; line-height: 1.25; white-space: normal; }
+.pandora-card-desc { min-height: 38px; margin-top: 10px; overflow: hidden; color: #b9cae8; font-size: 13px; line-height: 1.45; }
+.pandora-market-single-card .pandora-card-price { margin-top: 10px; font-size: 21px; }
+.pandora-market-single-card .pandora-card-price span { font-size: 12px; }
+.pandora-market-single-card .pandora-card-buy {
+    min-width: 112px;
+    min-height: 112px;
+    padding: 12px !important;
+    border-radius: 14px;
+    font-size: 21px !important;
+}
+.pandora-market-wallet { width: min(720px, 100%); margin: -15px auto 0; color: #7f9fc1; text-align: center; font-size: 13px; }
+.pandora-market-wallet b { color: #facc15; }
 .pandora-diamond-count {
     color: #80e5ff;
     font-weight: 700;
@@ -2886,6 +2923,17 @@ button.classic-skill-cell { cursor:pointer; }
     .pandora-buy-comma { display: none; }
     .pandora-relic-board-head { display: block; }
     .pandora-relic-board-head span { display: block; margin-top: 3px; text-align: left; }
+    .pandora-market-panel { padding: 14px 10px 16px; }
+    .pandora-market-title { font-size: 25px; }
+    .pandora-market-title > span { font-size: 12px; }
+    .pandora-market-grid { margin-top: 16px; }
+    .pandora-market-single-card { min-height: 132px; gap: 11px; padding: 12px; border-radius: 14px; }
+    .pandora-market-single-card .pandora-collection-icon,
+    .pandora-market-single-card .pandora-card-icon { width: 82px; height: 82px; flex-basis: 82px; }
+    .pandora-market-single-card .pandora-card-name { font-size: 18px; }
+    .pandora-card-desc { min-height: 34px; margin-top: 5px; font-size: 11px; }
+    .pandora-market-single-card .pandora-card-price { margin-top: 5px; font-size: 17px; }
+    .pandora-market-single-card .pandora-card-buy { min-width: 74px; min-height: 82px; font-size: 16px !important; }
 }
 @media (max-width: 430px) {
     .pandora-market-grid { grid-template-columns: minmax(0,1fr); }
