@@ -439,7 +439,9 @@ function _setMercenaryGuildPass(key, status) {
     if (_mercenaryPassKey() !== key) return false;
     _mercenaryGuildPass = {
         key:key,
-        active:!!(status && status.active),
+        // status / purchase 回傳 active；召喚授權回傳 allowed。兩者都是同一份
+        // server entitlement，不能在授權成功後把畫面誤設回「未啟用」。
+        active:!!(status && (status.active === true || status.allowed === true)),
         expiresAt:(status && status.expiresAt) || null,
         loading:null
     };
