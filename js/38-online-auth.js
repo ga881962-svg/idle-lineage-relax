@@ -160,6 +160,7 @@
         // This is deliberately separate from returnToCharacterSelect(): that
         // path saves the current role and keeps the authenticated roster open.
         // A replaced session must never perform either action.
+        try { if (typeof clearSessionLogs === 'function') clearSessionLogs(); } catch (_) {}
         cloudSync.characterId = null;
         cloudSync.revision = 0;
         cloudSync.ready = false;
@@ -572,6 +573,10 @@
             const rawCls = rawByClass[cls];
             if (!rawCls || typeof startGame !== 'function' || typeof loadGame !== 'function') throw new Error('遊戲尚未載入完成，請重新整理後再試。');
 
+            // Selecting a character starts a fresh character game session.
+            // This is intentionally not in openGameSession(): same-device
+            // session reuse/Auth restore must retain the current log.
+            try { if (typeof clearSessionLogs === 'function') clearSessionLogs(); } catch (_) {}
             currentSlot = cloudLocalSlot(row);
             cloudSync.characterId = row.id;
             cloudSync.revision = 0;

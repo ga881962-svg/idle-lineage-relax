@@ -860,6 +860,10 @@ function returnToCharacterSelect(){
     if(typeof player === 'undefined' || !player || !player.cls) return false;
     _flushSaveNow();   // 🗑️ v3.7.94 原本走 js/27 的 offlinePrepareCharacterSelect（存檔＋寫離線快照）；離線掛機移除後只留最終存檔
 
+    // Leaving a character ends its UI session. Logs never follow the next
+    // selected character, even when the Auth session itself stays active.
+    try { if(typeof clearSessionLogs === 'function') clearSessionLogs(); } catch(e) {}
+
     if(typeof stopGameTimers === 'function') stopGameTimers();
     if(typeof state !== 'undefined' && state) state.running = false;
     try { _roleSessionForget(); } catch(e) {}

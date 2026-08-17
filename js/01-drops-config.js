@@ -1932,6 +1932,29 @@ function logSys(msg, rare) {
     }
 }
 
+// 戰鬥／系統日誌是目前遊戲 session 的純 UI 暫存：不序列化、不寫入本機或雲端存檔。
+// 只有真正登出、session 被取代／失效、或明確離開角色時才由登入生命週期呼叫此函式。
+// 同裝置 session.open reuse 不會呼叫它，避免 Auth restore 把同一 session 的日誌清掉。
+function clearSessionLogs() {
+    ['combat-log', 'sys-log'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.replaceChildren();
+        el.scrollTop = 0;
+    });
+    _combatLogLocked = false;
+    _sysLogLocked = false;
+    ['combat-log-unlock', 'sys-log-unlock'].forEach(function (id) {
+        const button = document.getElementById(id);
+        if (button) button.classList.add('hidden');
+    });
+    const dot = document.getElementById('logtab-dot-sys');
+    if (dot) {
+        dot.classList.add('hidden');
+        dot.classList.remove('logtab-dot-legend', 'logtab-dot-relic');
+    }
+}
+
 // 🗂️ v3.6.50 戰鬥／系統日誌合併於同一視窗：標題列分頁鈕切換（過濾 pill 只在戰鬥分頁顯示）。
 let _logTab = 'combat';
 function switchLogTab(tab) {
