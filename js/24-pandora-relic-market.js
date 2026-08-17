@@ -1013,15 +1013,12 @@
     function _findMatches(requirements, st) {
         let inv = (typeof player !== 'undefined' && player && Array.isArray(player.inv)) ? player.inv : [];
         let warehouse = [];
-        const onlineWarehouse = typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode();
-        if (!onlineWarehouse) {
-            try {
-                if (typeof loadWarehouse === 'function') {
-                    let w = loadWarehouse();
-                    warehouse = w && Array.isArray(w.items) ? w.items : [];
-                }
-            } catch (e) {}
-        }
+        try {
+            if (typeof loadWarehouse === 'function') {
+                let w = loadWarehouse();
+                warehouse = w && Array.isArray(w.items) ? w.items : [];
+            }
+        } catch (e) {}
         let sources = [
             { name: 'inventory', items: inv },
             { name: 'warehouse', items: warehouse }
@@ -1054,10 +1051,7 @@
     // 🛡️ 交付前快照倉庫與背包，回傳一個還原函式（供 _withStateLock 在共用狀態寫入失敗時呼叫）。
     function _snapshotItemState() {
         let wh = null, inv = null;
-        const onlineWarehouse = typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode();
-        if (!onlineWarehouse) {
-            try { wh = JSON.parse(JSON.stringify(loadWarehouse())); } catch (e) {}
-        }
+        try { wh = JSON.parse(JSON.stringify(loadWarehouse())); } catch (e) {}
         try { inv = JSON.parse(JSON.stringify(player.inv || [])); } catch (e) {}
         return function () {
             // 🪦 v3.5.94 還原倉庫前必須先 loadWarehouse() 重新整理 js/12 的 _whLoadUids 快照。
@@ -1065,17 +1059,14 @@
             //    而 _whLoadUids 仍停在「消耗前」的集合、仍含該 uid → 回滾寫回時被 js/12:118-122 的墓碑過濾
             //    判為「快照殘留＝已被領出」直接丟棄，且 saveWarehouse 照樣回 true，這裡的 try/catch 完全察覺不到。
             //    先重讀一次讓 _whLoadUids 變成「消耗後」的集合，該 uid 不在其中 → 走「合法回歸」分支自動解墓碑並保留。
-            if (!onlineWarehouse) {
-                try { if (wh && typeof loadWarehouse === 'function') loadWarehouse(); } catch (e) {}
-                try { if (wh) saveWarehouse(wh); } catch (e) {}
-            }
+            try { if (wh && typeof loadWarehouse === 'function') loadWarehouse(); } catch (e) {}
+            try { if (wh) saveWarehouse(wh); } catch (e) {}
             try { if (inv) player.inv = inv; } catch (e) {}
             try { if (typeof renderTabs === 'function') renderTabs(true); } catch (e) {}
         };
     }
     function _consumeMatchedItems(matches) {
         let warehouseMatches = matches.filter(m => m.source === 'warehouse');
-        if (warehouseMatches.length && typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode()) return false;
         if (warehouseMatches.length) {
             if (typeof loadWarehouse !== 'function' || typeof saveWarehouse !== 'function') return false;
             let w;

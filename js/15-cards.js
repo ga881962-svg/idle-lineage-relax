@@ -410,12 +410,10 @@ function dollExcessGoldCards() { return player.inv.filter(it => { let d = DB.ite
 function dollExcessGoldCount() { return dollExcessGoldCards().reduce((s, it) => s + (it.cnt || 1), 0) + _dollWhExcessCount(3); }   // 🔧 含倉庫多餘金卡
 // 🔧 倉庫「多餘卡片」支援（僅圖鑑已開金階的重複卡）：兌換娃娃袋子/盒子時，背包不足自動動用倉庫存量（背包優先）。走 load→save 成對、吃倉庫安全網（拒寫失敗檔＋多分頁 uid 合併）。⚠️ 僅「兌換」用；卡片/娃娃「合成」仍只讀背包（見 magicDollSynth／dollSynth 不變量）。
 function _dollWhExcessCount(tier) {
-    if (typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode()) return 0;
     try { return loadWarehouse().items.filter(it => { let d = DB.items[it.id]; return d && !it.lock && d.eff === 'card' && d.cardTier === tier && cardDexTier(d.cardMob) >= 3; }).reduce((s, it) => s + (it.cnt || 1), 0); } catch (e) { return 0; }
 }
 function _dollWhExcessConsume(tier, n) {   // 自倉庫扣除最多 n 張符合條件的卡；回傳實扣數（只動被消耗的堆疊、不碰其餘，避免誤刪無 cnt 項）
     if (n <= 0) return 0;
-    if (typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode()) return 0;
     try {
         let w = loadWarehouse(), need = n, changed = false;
         for (let i = w.items.length - 1; i >= 0 && need > 0; i--) {

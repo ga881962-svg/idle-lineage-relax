@@ -747,10 +747,7 @@
                 throw error;
             }
             if (status && status.migrationRequired) {
-                // The legacy bucket is read only for this explicit one-time
-                // server-requested import. Signed-in warehouse UI never uses
-                // it as an authority or fallback.
-                const legacy = typeof loadWarehouse === 'function' ? loadWarehouse(true) : { gold:0, items:[] };
+                const legacy = typeof loadWarehouse === 'function' ? loadWarehouse() : { gold:0, items:[] };
                 status = await gameApi({ action:'warehouse.migrate', characterId:cloudSync.characterId, requestId:newUuid(), legacyWarehouse:{ gold:Number(legacy.gold) || 0, items:Array.isArray(legacy.items) ? legacy.items : [] } });
             }
             if (status && status.authoritative) {

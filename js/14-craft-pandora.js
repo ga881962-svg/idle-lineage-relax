@@ -495,7 +495,7 @@ const DEMONKING_RECIPES = [
 // 背包＋倉庫中可作素材的 +11 以上指定惡魔武器：優先「有席琳套裝」者，其次「強化值最高」者；未鎖定
 function findDemonKingSource(srcId) {
     let cands = player.inv.filter(i => i.id === srcId && (i.en || 0) >= 11 && !i.lock);
-    if (!(typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode())) try { loadWarehouse().items.filter(i => i.id === srcId && (i.en || 0) >= 11 && !i.lock).forEach(i => cands.push(Object.assign({}, i, { _whSource: true }))); } catch (e) {}   // Offline/local-only mode may use its local warehouse.
+    try { loadWarehouse().items.filter(i => i.id === srcId && (i.en || 0) >= 11 && !i.lock).forEach(i => cands.push(Object.assign({}, i, { _whSource: true }))); } catch (e) {}   // 🔧 倉庫中的 +11 惡魔武器亦可作素材（_whSource 標記：消耗時自倉庫精準扣除）
     if (!cands.length) return null;
     let withSet = cands.filter(i => i.seteff);
     let pool = (withSet.length ? withSet : cands).slice().sort((a, b) => (b.en || 0) - (a.en || 0));
@@ -558,7 +558,7 @@ const LUMIEL_RECIPES = [
 ];
 function findLumielSource(srcId) {
     let cands = player.inv.filter(i => i.id === srcId && (i.en || 0) >= 7 && !i.lock);
-    if (!(typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode())) try { loadWarehouse().items.filter(i => i.id === srcId && (i.en || 0) >= 7 && !i.lock).forEach(i => cands.push(Object.assign({}, i, { _whSource: true }))); } catch (e) {}
+    try { loadWarehouse().items.filter(i => i.id === srcId && (i.en || 0) >= 7 && !i.lock).forEach(i => cands.push(Object.assign({}, i, { _whSource: true }))); } catch (e) {}   // 🔧 倉庫中的 +7 戰士團裝備亦可作素材
     if (!cands.length) return null;
     let withSet = cands.filter(i => i.seteff);
     let pool = (withSet.length ? withSet : cands).slice().sort((a, b) => (b.en || 0) - (a.en || 0));
@@ -624,7 +624,7 @@ const MYSTICWAND_RECIPES = [
 // 背包＋倉庫中可作素材的 +7 以上來源魔杖；未鎖定。成品為 +0 白板 → 挑「最不值錢」的那把：強化值最低者優先，同強化值再避開有詞綴／屬性／席琳套裝者。
 function findMysticWandSource(srcId) {
     let cands = player.inv.filter(i => i.id === srcId && (i.en || 0) >= 7 && !i.lock);
-    if (!(typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode())) try { loadWarehouse().items.filter(i => i.id === srcId && (i.en || 0) >= 7 && !i.lock).forEach(i => cands.push(Object.assign({}, i, { _whSource: true }))); } catch (e) {}
+    try { loadWarehouse().items.filter(i => i.id === srcId && (i.en || 0) >= 7 && !i.lock).forEach(i => cands.push(Object.assign({}, i, { _whSource: true }))); } catch (e) {}   // 🔧 倉庫中的 +7 魔杖亦可作素材（_whSource 標記：消耗時自倉庫精準扣除）
     if (!cands.length) return null;
     let _extra = i => (i.seteff ? 4 : 0) + (i.bless ? 2 : 0) + (i.attr ? 1 : 0);   // 附加價值愈高愈晚被消耗
     return cands.slice().sort((a, b) => ((a.en || 0) - (b.en || 0)) || (_extra(a) - _extra(b)))[0];
@@ -900,7 +900,6 @@ function buildRecipeIndex() {
 //    一律直接呼叫 loadWarehouse()，不得走這裡，否則會改到共用實例。
 let _whSyncCache = null;
 function _whReadCached() {
-    if (typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode()) return { gold: 0, items: [] };
     if (_whSyncCache) return _whSyncCache;
     let w = loadWarehouse();
     _whSyncCache = w;
@@ -910,12 +909,10 @@ function _whReadCached() {
 }
 function whCountId(id) {
     if (id === 'gold') return 0;   // 倉庫金幣不列入材料計算
-    if (typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode()) return 0;
     try { let w = _whReadCached(); return w.items.filter(i => i.id === id && !i.lock).reduce((s, i) => s + i.cnt, 0); } catch (e) { return 0; }   // 🔒 鎖定件不算可用材料（與 whConsumeId 同口徑，否則會「顯示可做卻材料不足」）
 }
 function whConsumeId(id, n) {   // 自倉庫扣除最多 n 個（白板/低強化優先），回傳實際扣除數
     if (n <= 0) return 0;
-    if (typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode()) return 0;
     try {
         let w = loadWarehouse();
         let need = n, stacks = w.items.filter(i => i.id === id && !i.lock);   // 🔒 鎖定件不得當材料銷毀（與三個客製製作 findXxxSource 一致）
@@ -929,7 +926,6 @@ function whConsumeId(id, n) {   // 自倉庫扣除最多 n 個（白板/低強�
 // 🔧 自倉庫精準移除指定 uid 的堆疊（n 預設 1）：強化/詞綴/席琳套裝武器作素材時，消耗該唯一實例
 function whRemoveStackByUid(uid, n) {
     n = n || 1;
-    if (typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode()) return false;
     try {
         let w = loadWarehouse();
         let idx = w.items.findIndex(i => i.uid === uid);
@@ -976,7 +972,7 @@ function questConsumeId(id, n) {
     let need = n, _gone = new Set();
     for (let it of player.inv.filter(i => i.id === id && !i.lock)) { if (need <= 0) break; let d = Math.min(it.cnt, need); it.cnt -= d; need -= d; if (it.cnt <= 0) _gone.add(it.uid); }   // 🔒 鎖定件不得被任務兌換吃掉
     if (_gone.size) player.inv = player.inv.filter(i => !_gone.has(i.uid));   // ⚠️ uid 精準移除：舊寫法 filter(i=>i.cnt>0) 會把 cnt 未定義的舊存檔物品連同鎖定件一併靜默刪除
-    if (need > 0 && !(typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode())) whConsumeId(id, need);
+    if (need > 0) whConsumeId(id, need);
 }
 
 function invCountId(id) {
@@ -1029,7 +1025,7 @@ function consumeMaterialById(id, n) {
     stacks.sort((a, b) => (((a.en||0)*100)+(a.anc?10:0)+(a.bless?10:0)+(a.attr?10:0)+(a.seteff?50:0)) - (((b.en||0)*100)+(b.anc?10:0)+(b.bless?10:0)+(b.attr?10:0)+(b.seteff?50:0)));
     for (let st of stacks) { if (need <= 0) break; let d = Math.min(st.cnt, need); if (d > 0 && st.bless === true) _craftBlessCount += d; st.cnt -= d; need -= d; if (st.cnt <= 0) _gone.add(st.uid); }   // 🔧 v3.1.27 祝福裝備材料件數累加（供 doCraft 逐件強制祝福）
     if (_gone.size) player.inv = player.inv.filter(i => !_gone.has(i.uid));   // ⚠️ uid 精準移除（舊寫法 i.cnt>0 會誤刪 cnt 未定義的舊物品）
-    if (need > 0 && !(typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode())) whConsumeId(id, need);   // Offline/local-only fallback.
+    if (need > 0) whConsumeId(id, need);   // 🔧 背包不足：自倉庫扣除
 }
 function ensureMaterial(id, count, depth) {
     if (id === 'gold' || depth > 24) return;
@@ -1985,7 +1981,7 @@ window.onload = () => {
     // 取出 hover 物品的實例（倉庫或背包），供倉庫等以實例顯示的清單使用
     function findTipItem(src, uidv){
         try {
-            if(src === 'wh'){ if (typeof onlineWarehouseClientMode === 'function' && onlineWarehouseClientMode()) return null; let w = loadWarehouse(); return ((w && w.items) || []).find(x => x.uid === uidv) || null; }
+            if(src === 'wh'){ let w = loadWarehouse(); return ((w && w.items) || []).find(x => x.uid === uidv) || null; }
             if(src === 'eq'){ let e = (typeof player !== 'undefined' && player && player.eq) || {}; for(let k in e){ if(e[k] && e[k].uid === uidv) return e[k]; } return null; }   // 🖱️ 已裝備物品（裝備視窗格）：從 player.eq 找實例
             return (player.inv || []).find(x => x.uid === uidv) || null;
         } catch(e){ return null; }
