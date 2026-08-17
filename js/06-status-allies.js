@@ -3484,6 +3484,12 @@ function refreshAllyOnce(slotN) {
     }
     if (_pendingAlignment) fresh.alignmentValue = _effectiveAlignment;   // 帳本尚未由來源角色領取前，維持隊伍中已取得的性向效果
     fresh._hiredAt = Number(cur._hiredAt) || 0;   // 🧑‍🤝‍🧑 v3.7.93 重建快照不能重設招募時刻，否則每次進安全區都會把自己的獨佔順位往後推
+    // 線上傭兵由隊長目前的 checkpoint 保存穿戴快照；刷新來源角色資料時，不可
+    // 把隊長先前替傭兵穿上的裝備覆蓋回來源角色的舊裝備。
+    if (_onlineAllyRosterKey()) {
+        fresh.eq = JSON.parse(JSON.stringify(cur.eq || {}));
+        try { _withAllyEquipmentContext(fresh, () => recomputeStats()); } catch (e) {}
+    }
     let idx = player.allies.findIndex(a => a && a._slot === slotN);
     if (idx !== -1) player.allies[idx] = fresh; else player.allies.push(fresh);
     return { kind: 'refresh', msg: m };
@@ -3826,6 +3832,20 @@ function _allyManagerSource(slotN, notify) {
         return { slotN:slotN, ally:ally, doc:doc, source:source };
     } catch (e) { if (notify) logSys('<span class="text-red-400">隊員來源存檔讀取失敗。</span>'); return null; }
 }
+// 線上裝備管理不讀取其他角色的 localStorage。傭兵是隊長目前 checkpoint 內的
+// 出戰快照，裝備交換只修改這份快照，再交由既有 saveGame/cloud checkpoint 流程保存。
+function _allyEquipmentManagerSource(slotN, notify) {
+    let onlineKey = _onlineAllyRosterKey();
+    if (onlineKey) {
+        slotN = String(slotN);
+        if (!_allyManagerInTown()) { if (notify) logSys('<span class="text-red-400">隊員裝備只能在安全區管理。</span>'); return null; }
+        let ally = (player.allies || []).find(a => a && String(a._slot) === slotN);
+        if (!ally) { if (notify) logSys('<span class="text-red-400">該角色目前不在隊伍中。</span>'); return null; }
+        return { slotN:slotN, ally:ally, doc:null, source:ally, online:true };
+    }
+    let local = _allyManagerSource(slotN, notify);
+    return local ? { ...local, online:false } : null;
+}
 function _withAllyEquipmentContext(source, work) {
     let livePlayer = player, oldCalc = calcStats, oldTabs = renderTabs;
     let oldSkills = typeof renderSkillSelects === 'function' ? renderSkillSelects : null;
@@ -3848,12 +3868,24 @@ function _withAllyEquipmentContext(source, work) {
     }
 }
 function _saveManagedAllyEquipment(slotN, mutate) {
-    let ctx = _allyManagerSource(slotN, true);
+    let ctx = _allyEquipmentManagerSource(slotN, true);
     if (!ctx) return false;
     let before = JSON.stringify({ inv:ctx.source.inv, eq:ctx.source.eq });
     try { _withAllyEquipmentContext(ctx.source, () => mutate(ctx.source)); }
-    catch (e) { logSys('<span class="text-red-400">隊員裝備操作失敗，未寫入來源存檔。</span>'); return false; }
+    catch (e) { logSys('<span class="text-red-400">隊員裝備操作失敗，尚未寫入存檔。</span>'); return false; }
     if (before === JSON.stringify({ inv:ctx.source.inv, eq:ctx.source.eq })) return false;
+    if (ctx.online) {
+        try {
+            // saveGame is bridged in online mode: it queues checkpoint.write for the
+            // current character_id. No localStorage source save is written here.
+            if (!saveGame()) throw new Error('save failed');
+            if (typeof window.onlineCloudSyncNow === 'function') window.onlineCloudSyncNow().catch(() => {});
+            return true;
+        } catch (e) {
+            logSys('<span class="text-red-400">隊員裝備寫入雲端存檔失敗。</span>');
+            return false;
+        }
+    }
     try {
         if (!_lzSet('lineage_idle_save_' + ctx.slotN, _saveWrap(JSON.stringify(ctx.doc)))) throw new Error('write failed');
         let refreshed = refreshAllyOnce(ctx.slotN);
@@ -4000,7 +4032,7 @@ function allyUnequipItem(slotN, slot) {
     if (saved) { calcStats(); updateUI(); openAllyEquipmentManager(slotN); }
 }
 function renderAllyEquipmentManager(div, slotN) {
-    let ctx = _allyManagerSource(slotN, true);
+    let ctx = _allyEquipmentManagerSource(slotN, true);
     if (!ctx) { renderAllyNPC(div); return; }
     let source = ctx.source;
     let equipped = Object.keys(source.eq || {}).filter(slot => source.eq[slot]);
@@ -4016,7 +4048,10 @@ function renderAllyEquipmentManager(div, slotN) {
         let cnt = Math.max(1, Math.floor(item.cnt || 1));
         return `<div class="flex items-center justify-between gap-2 bg-slate-900/60 border border-slate-700 rounded px-3 py-2"><span class="min-w-0 text-sm text-slate-200">${getItemFullName(item)}${cnt > 1 ? ` ×${cnt}` : ''}</span><button onclick="allyEquipItem('${ctx.slotN}','${encodeURIComponent(String(item.uid || ''))}')" class="btn shrink-0 py-1 px-3 text-xs bg-emerald-900 border-emerald-700 text-emerald-100">穿戴</button></div>`;
     }).join('') : '<div class="text-sm text-slate-500">隊長背包沒有可穿戴裝備。</div>';
-    div.innerHTML = `<div class="flex flex-col gap-3 p-1"><div class="flex items-center justify-between gap-2"><div><div class="text-amber-300 font-bold">${ctx.ally._allyName || source.name || ('存檔 ' + ctx.slotN)} 的裝備</div><div class="text-xs text-slate-400">裝備由隊長背包提供；卸下或替換的裝備會回到隊長背包。</div></div><button onclick="closeAllyEquipmentManager()" class="btn py-1 px-3 text-xs bg-slate-700 border-slate-500 text-slate-100">返回</button></div><div class="text-xs text-slate-500">變更會立刻寫回來源角色存檔，並刷新目前隊員能力。</div><div class="flex flex-col gap-2"><div class="text-sm font-bold text-sky-300">已穿戴</div>${eqHtml}</div><div class="flex flex-col gap-2"><div class="text-sm font-bold text-emerald-300">隊長背包可穿戴裝備</div>${invHtml}</div></div>`;
+    let saveNote = ctx.online
+        ? '變更會寫入目前角色的雲端存檔，並刷新目前隊員能力。'
+        : '變更會立刻寫回來源角色存檔，並刷新目前隊員能力。';
+    div.innerHTML = `<div class="flex flex-col gap-3 p-1"><div class="flex items-center justify-between gap-2"><div><div class="text-amber-300 font-bold">${ctx.ally._allyName || source.name || ('存檔 ' + ctx.slotN)} 的裝備</div><div class="text-xs text-slate-400">裝備由隊長背包提供；卸下或替換的裝備會回到隊長背包。</div></div><button onclick="closeAllyEquipmentManager()" class="btn py-1 px-3 text-xs bg-slate-700 border-slate-500 text-slate-100">返回</button></div><div class="text-xs text-slate-500">${saveNote}</div><div class="flex flex-col gap-2"><div class="text-sm font-bold text-sky-300">已穿戴</div>${eqHtml}</div><div class="flex flex-col gap-2"><div class="text-sm font-bold text-emerald-300">隊長背包可穿戴裝備</div>${invHtml}</div></div>`;
 }
 // 隊長可於安全區替出戰隊員接取其自身職業的試煉；只改試煉啟用狀態，交付與獎勵仍由來源角色處理。
 function _saveManagedAllyQuest(slotN, mutate) {
