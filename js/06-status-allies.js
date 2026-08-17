@@ -497,10 +497,6 @@ function allySlotList() { return ['1','2','3','4','5','6','7','8'].filter(n => n
 const ALLY_ACTIVE_MAX = 3;         // 非王族協力傭兵上限。
 const ROYAL_ALLY_ACTIVE_MAX = 7;   // 王族最多帶滿帳號其餘 7 個角色。
 function allyActiveCap() {
-    // A valid Guild Pass unlocks the whole account roster.  The pass is one
-    // entitlement, not a per-mercenary purchase: every other character slot
-    // that has a formal checkpoint may join at the same time.
-    if (_mercenaryPassKey() && mercenaryGuildPassActive()) return ROYAL_ALLY_ACTIVE_MAX;
     if (!player || player.cls !== 'royal') return ALLY_ACTIVE_MAX;
     const cha = Math.max(0, Math.min(60, Math.floor((player.d && player.d.cha) || 0)));
     return Math.min(ROYAL_ALLY_ACTIVE_MAX, ALLY_ACTIVE_MAX + Math.floor(cha / 15));   // 魅力 0~14/15/30/45/60 → 3/4/5/6/7 名
@@ -4101,10 +4097,7 @@ function renderAllyQuestManager(div, slotN) {
 function renderAllyNPC(div) {
     const _activeCap = allyActiveCap();
     const _royalCha = Math.max(0, Math.floor((player.d && player.d.cha) || 0));
-    const _guildPassUnlimited = !!(_mercenaryPassKey() && mercenaryGuildPassActive());
-    const _capHint = _guildPassUnlimited
-        ? '<br><span class="text-violet-300">傭兵公會月卡有效：可同時召喚本帳號其餘全部角色（最多 7 名）。</span>'
-        : player.cls === 'royal'
+    const _capHint = player.cls === 'royal'
         ? `<br><span class="text-amber-300">王族魅力不影響傭兵能力；每滿 15 點魅力可多帶 1 名。目前魅力 ${_royalCha}，可同時帶 ${_activeCap}/7 名。</span>`
         : `<br><span class="text-slate-400">目前可同時帶 ${_activeCap} 名傭兵。</span>`;
     const _hiredMap = mercEmploymentMap();   // 🧑‍🤝‍🧑 v3.7.93 一次掃完全部存檔位；逐列各查一次會變成 7×7 次解壓
