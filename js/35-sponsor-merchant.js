@@ -30,7 +30,7 @@
     }
     function resetSponsorStatusForCurrentAccount() {
         let key = onlineSponsorAccountKey();
-        if (key && sponsorPassStatus.accountKey && sponsorPassStatus.accountKey !== key) {
+        if (key && sponsorPassStatus.accountKey !== key) {
             sponsorPassStatus = { loaded:false, loading:false, accountKey:key, passes:{}, sponsorDiamonds:null };
         }
         return key;
@@ -84,18 +84,26 @@
                 action:'sponsor.pass.status', characterId:window.onlineCloudCharacterId(),
                 requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : ''
             });
-            const offline = await window.onlineCloudApi({
-                action:'offline.status', characterId:window.onlineCloudCharacterId(),
-                requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : ''
-            });
             if (accountKey !== onlineSponsorAccountKey()) return sponsorPassStatus;
             sponsorPassStatus = {
                 loaded:true, loading:false, accountKey:accountKey,
-                passes:Object.assign({}, (result && result.passes && typeof result.passes === 'object') ? result.passes : {}, {
-                    offline:String((offline && offline.expiresAt) || '')
-                }),
+                passes:(result && result.passes && typeof result.passes === 'object') ? result.passes : {},
                 sponsorDiamonds:Number((result && result.sponsorDiamonds) || 0)
             };
+            // Offline availability is unrelated to the account wallet.  A
+            // disabled/offline error must never discard the valid server
+            // wallet response used by the HUD and sponsor merchant.
+            try {
+                const offline = await window.onlineCloudApi({
+                    action:'offline.status', characterId:window.onlineCloudCharacterId(),
+                    requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : ''
+                });
+                if (accountKey === onlineSponsorAccountKey()) {
+                    sponsorPassStatus.passes = Object.assign({}, sponsorPassStatus.passes, {
+                        offline:String((offline && offline.expiresAt) || '')
+                    });
+                }
+            } catch (_) {}
         } catch (error) {
             sponsorPassStatus.loading = false;
             console.warn('sponsor pass status unavailable', error);
@@ -103,13 +111,18 @@
         return sponsorPassStatus;
     }
     window.ensureOnlineSponsorPassStatus = refreshSponsorPasses;
-    window.setOnlineSponsorWalletBalance = function (balance) {
+    window.setOnlineSponsorWalletBalance = function (balance, expectedAccountKey) {
         if (!onlineSponsorWalletReady()) return;
         const accountKey = resetSponsorStatusForCurrentAccount();
+        if (expectedAccountKey && expectedAccountKey !== accountKey) return false;
         sponsorPassStatus = Object.assign({}, sponsorPassStatus, {
             loaded:true, loading:false, accountKey:accountKey,
             sponsorDiamonds:Math.max(0, Math.floor(Number(balance) || 0))
         });
+        if (typeof updateUI === 'function') updateUI();
+        const content = document.getElementById('interaction-content');
+        if (content && content.dataset.npcId === 'npc_sponsor') window.renderSponsorMerchant(content);
+        return true;
     };
     function untilFor(kind) {
         return sponsorPassStatus.loaded ? (Date.parse(sponsorPassStatus.passes[kind]) || 0) : 0;

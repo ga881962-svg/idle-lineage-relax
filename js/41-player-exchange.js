@@ -94,6 +94,7 @@
   async function load() {
     var c = client(); if (!c || !owned()) return note('請先登入並進入角色存檔，才能使用交易所。', true);
     if (!token()) return note('安全連線尚未建立，請重新登入。', true);
+    var walletAccountKey = String(player.cloudAccountId || player.cloudCharacterId || '');
     // Expiry reclaim is a canonical, ledgered write action.  It is never
     // hidden inside a browse RPC (which used to call a legacy writer).
     var reclaim = await c.rpc('secure_market_reclaim', { p_session_token:token(), p_character_id:player.cloudCharacterId, p_request_id:requestId() });
@@ -104,6 +105,9 @@
     var result = await Promise.all(calls), wallet = result[0], listings = result[1];
     if (wallet.error) return note(errorText(wallet.error), true);
     document.getElementById('player-exchange-balance').textContent = money(wallet.data || 0);
+    if (typeof window.setOnlineSponsorWalletBalance === 'function') {
+      window.setOnlineSponsorWalletBalance(wallet.data || 0, walletAccountKey);
+    }
     if (listings.error) {
       reportRpcError(view === 'mine' ? 'secure_market_mine' : 'secure_market_browse_v2', listings.error);
       return note(errorText(listings.error), true);
