@@ -383,7 +383,7 @@ function summonElementDamage(dice, ele, t, flatBonus, mult, mrPen) {
 // Online mode has one source of truth: the signed-in account's latest
 // character checkpoint.  The guild roster is only an in-memory read cache;
 // it is refreshed whenever the guild is opened and is never written back.
-let _onlineAllyRoster = { key:'', slots:Object.create(null), loading:null };
+let _onlineAllyRoster = { key:'', slots:Object.create(null), currentSlot:'', loading:null };
 function _onlineAllyRosterKey() {
     if (typeof window === 'undefined' || typeof window.onlineAuthIsSignedIn !== 'function' || !window.onlineAuthIsSignedIn()) return '';
     let account = player && player.cloudAccountId ? String(player.cloudAccountId) : '';
@@ -396,23 +396,31 @@ function onlineCloudAllySnapshotForSlot(slotN) {
     if (_onlineAllyRoster.key !== key) return null; // online must never fall back to an old local save
     return _onlineAllyRoster.slots[String(slotN)] || null;
 }
+function currentAllyRosterSlot() {
+    let key = _onlineAllyRosterKey();
+    return key && _onlineAllyRoster.key === key && _onlineAllyRoster.currentSlot
+        ? String(_onlineAllyRoster.currentSlot)
+        : String(currentSlot);
+}
 async function refreshOnlineAllyRoster() {
     let key = _onlineAllyRosterKey();
     if (!key || typeof window.onlineCloudAllySnapshots !== 'function') return false;
     if (_onlineAllyRoster.loading && _onlineAllyRoster.loading.key === key) return _onlineAllyRoster.loading.promise;
     let promise = Promise.resolve(window.onlineCloudAllySnapshots()).then(rows => {
         if (_onlineAllyRosterKey() !== key) return false; // another account/character won the race
-        let slots = Object.create(null);
+        let slots = Object.create(null), currentSlot = '';
+        let currentCharacterId = (typeof window.onlineCloudCharacterId === 'function') ? String(window.onlineCloudCharacterId() || '') : '';
         (Array.isArray(rows) ? rows : []).forEach(row => {
             let slot = String(row && row.slot != null ? row.slot : '');
             let state = row && row.state;
             let source = state && state.p;
             if (slot && source && source.cls) slots[slot] = source;
+            if (slot && row && String(row.id || '') === currentCharacterId) currentSlot = slot;
         });
-        _onlineAllyRoster = { key:key, slots:slots, loading:null };
+        _onlineAllyRoster = { key:key, slots:slots, currentSlot:currentSlot, loading:null };
         return true;
     }).catch(() => {
-        if (_onlineAllyRosterKey() === key) _onlineAllyRoster = { key:'', slots:Object.create(null), loading:null };
+        if (_onlineAllyRosterKey() === key) _onlineAllyRoster = { key:'', slots:Object.create(null), currentSlot:'', loading:null };
         return false;
     });
     _onlineAllyRoster.loading = { key:key, promise:promise };
@@ -428,7 +436,7 @@ function openAllyNPC(div) {
         renderAllyNPC(div);
     });
 }
-function allySlotList() { return ['1','2','3','4','5','6','7','8'].filter(n => n !== String(currentSlot)); }   // 8 格存檔：可招募自身以外全部 7 個角色。
+function allySlotList() { return ['1','2','3','4','5','6','7','8'].filter(n => n !== currentAllyRosterSlot()); }   // 8 格存檔：可招募自身以外全部 7 個角色。
 const ALLY_ACTIVE_MAX = 3;         // 非王族協力傭兵上限。
 const ROYAL_ALLY_ACTIVE_MAX = 7;   // 王族最多帶滿帳號其餘 7 個角色。
 function allyActiveCap() {
@@ -632,7 +640,7 @@ function mercEmploymentMap() {
     if (!player || !player.cls) return map;
     let classicMode = !!player.classicMode;
     for (let n = 1; n <= 8; n++) {
-        if (String(n) === String(currentSlot)) continue;                 // 自己不算「別的僱主」
+        if (String(n) === currentAllyRosterSlot()) continue;             // 自己不算「別的僱主」
         let leader = _mercSavedRole(n);
         if (!leader || !!leader.classicMode !== classicMode) continue;   // 跨模式本來就不能互相招募
         let empSlot = String(n), empId = _mercRoleIdentity(leader), empName = leader.name || '未命名';
