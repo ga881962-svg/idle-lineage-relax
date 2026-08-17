@@ -383,7 +383,7 @@ function summonElementDamage(dice, ele, t, flatBonus, mult, mrPen) {
 // Online mode has one source of truth: the signed-in account's latest
 // character checkpoint.  The guild roster is only an in-memory read cache;
 // it is refreshed whenever the guild is opened and is never written back.
-let _onlineAllyRoster = { key:'', slots:Object.create(null), currentSlot:'', loading:null };
+let _onlineAllyRoster = { key:'', slots:Object.create(null), entries:Object.create(null), currentSlot:'', loading:null };
 function _onlineAllyRosterKey() {
     if (typeof window === 'undefined' || typeof window.onlineAuthIsSignedIn !== 'function' || !window.onlineAuthIsSignedIn()) return '';
     let account = player && player.cloudAccountId ? String(player.cloudAccountId) : '';
@@ -395,6 +395,12 @@ function onlineCloudAllySnapshotForSlot(slotN) {
     if (!key) return undefined; // actual offline/local-only mode
     if (_onlineAllyRoster.key !== key) return null; // online must never fall back to an old local save
     return _onlineAllyRoster.slots[String(slotN)] || null;
+}
+function onlineCloudAllyEntryForSlot(slotN) {
+    let key = _onlineAllyRosterKey();
+    if (!key) return undefined;
+    if (_onlineAllyRoster.key !== key) return null;
+    return _onlineAllyRoster.entries[String(slotN)] || null;
 }
 function currentAllyRosterSlot() {
     let key = _onlineAllyRosterKey();
@@ -408,19 +414,20 @@ async function refreshOnlineAllyRoster() {
     if (_onlineAllyRoster.loading && _onlineAllyRoster.loading.key === key) return _onlineAllyRoster.loading.promise;
     let promise = Promise.resolve(window.onlineCloudAllySnapshots()).then(rows => {
         if (_onlineAllyRosterKey() !== key) return false; // another account/character won the race
-        let slots = Object.create(null), currentSlot = '';
+        let slots = Object.create(null), entries = Object.create(null), currentSlot = '';
         let currentCharacterId = (typeof window.onlineCloudCharacterId === 'function') ? String(window.onlineCloudCharacterId() || '') : '';
         (Array.isArray(rows) ? rows : []).forEach(row => {
             let slot = String(row && row.slot != null ? row.slot : '');
             let state = row && row.state;
             let source = state && state.p;
+            if (slot) entries[slot] = { player:(source && source.cls) ? source : null, name:String(row && row.name || ''), classId:String(row && row.class_id || ''), level:Number(row && row.level || 1) || 1 };
             if (slot && source && source.cls) slots[slot] = source;
             if (slot && row && String(row.id || '') === currentCharacterId) currentSlot = slot;
         });
-        _onlineAllyRoster = { key:key, slots:slots, currentSlot:currentSlot, loading:null };
+        _onlineAllyRoster = { key:key, slots:slots, entries:entries, currentSlot:currentSlot, loading:null };
         return true;
     }).catch(() => {
-        if (_onlineAllyRosterKey() === key) _onlineAllyRoster = { key:'', slots:Object.create(null), currentSlot:'', loading:null };
+        if (_onlineAllyRosterKey() === key) _onlineAllyRoster = { key:'', slots:Object.create(null), entries:Object.create(null), currentSlot:'', loading:null };
         return false;
     });
     _onlineAllyRoster.loading = { key:key, promise:promise };
@@ -4049,11 +4056,13 @@ function renderAllyNPC(div) {
                     <button onclick="openAllyQuestManager('${n}')" class="btn py-1 px-3 text-sm font-bold bg-amber-950 border-amber-700 text-amber-100" title="在安全區替符合等級的隊員接取專屬試煉">任務</button>
                     <button onclick="dismissAlly('${n}')" class="btn py-1 px-3 text-sm font-bold bg-red-950 border-red-700 text-red-200" title="只解散這名協力傭兵（累積經驗會記入待領帳本）">解散</button>
                </div>`
-            : (!_modeMatch
+            : (sum.noCheckpoint
+                ? `<span class="text-xs text-slate-500 px-2 text-right">尚未建立正式角色存檔<br>請先進入該角色一次</span>`
+                : (!_modeMatch
                 ? `<span class="text-xs text-slate-500 px-2 text-right">非同模式存檔<br>不可招募</span>`
                 : _hired
                     ? `<span class="text-xs px-2 text-right" style="color:#fbbf24;" title="同一個角色同時只能受僱於一位僱主；請先由現任僱主解散。">已受僱於 ${_hired.employerName}<br>不可重複招募</span>`
-                    : `<button onclick="toggleAlly('${n}')" class="btn py-1 px-4 text-sm font-bold bg-emerald-900 border-emerald-700 text-emerald-200">召喚</button>`);
+                    : `<button onclick="toggleAlly('${n}')" class="btn py-1 px-4 text-sm font-bold bg-emerald-900 border-emerald-700 text-emerald-200">召喚</button>`));
         // 🔋 出戰中傭兵剩餘資源：騎士/戰士(純物理)不顯示；龍騎士以 HP 為資源(技能吃HP)；其餘職業顯示 MP
         let _res = '';
         if (active) {

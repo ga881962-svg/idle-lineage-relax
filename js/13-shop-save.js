@@ -370,6 +370,14 @@ function _summaryFromRaw(s){
     try { let d = JSON.parse(s); return _summaryFromPlayer(d && d.p); } catch(e){ return null; }
 }
 function slotSummary(n){
+    let onlineEntry = (typeof onlineCloudAllyEntryForSlot === 'function') ? onlineCloudAllyEntryForSlot(n) : undefined;
+    if (onlineEntry !== undefined) {
+        if (!onlineEntry) return null;
+        if (onlineEntry.player) return _summaryFromPlayer(onlineEntry.player);
+        let rawCls = ({ prince:'royal', wizard:'mage', darkelf:'dark', dragonknight:'dragon', illusionist:'illusion' })[onlineEntry.classId] || onlineEntry.classId;
+        let cls = { knight:'騎士', mage:'法師', elf:'妖精', dark:'黑暗妖精', illusion:'幻術士', dragon:'龍騎士', warrior:'戰士', royal:'王族' }[rawCls] || rawCls || '未命名';
+        return { name:onlineEntry.name, cls:cls, rawCls:rawCls, lv:onlineEntry.level, classic:false, enSeed:'', noCheckpoint:true };
+    }
     let online = (typeof onlineCloudAllySnapshotForSlot === 'function') ? onlineCloudAllySnapshotForSlot(n) : undefined;
     return online !== undefined ? _summaryFromPlayer(online) : _summaryFromRaw(_lzGet('lineage_idle_save_' + n));
 }
