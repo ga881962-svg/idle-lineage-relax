@@ -341,10 +341,8 @@ function _slotBadgeHtml(party){
     return `<span class="load-slot-status"><span class="load-slot-badge load-badge-party"><strong>擔任傭兵</strong></span></span>`;
 }
 
-function _summaryFromRaw(s){
-    if(!s) return null;
-    s = _saveUnwrap(s).payload;   // 🛡️ 先解存檔簽章（摘要顯示不驗章、僅取 payload；舊明文檔原樣回傳）
-    try { let d = JSON.parse(s); let p = d.p;
+function _summaryFromPlayer(p){
+    try { if (!p || !p.cls) return null;
         let clsName = { knight:'騎士', mage:'法師', elf:'妖精', dark:'黑暗妖精', illusion:'幻術士', dragon:'龍騎士', warrior:'戰士', royal:'王族' }[p.cls] || p.cls;
         return {
             name: p.name || '',
@@ -366,7 +364,15 @@ function _summaryFromRaw(s){
         };   // 🎮 經典模式旗標：供存檔位顯示與傭兵同模式招募限制（🏛️v3.0.83 傳統已取消·未載入過的舊傳統存檔以 classicMode 歸類）；avatar＝職業性別頭像名（assets/character/<avatar>.png）；name 未命名時留空字串（顯示端自行省略）
     } catch(e){ return null; }
 }
-function slotSummary(n){ return _summaryFromRaw(_lzGet('lineage_idle_save_' + n)); }
+function _summaryFromRaw(s){
+    if(!s) return null;
+    s = _saveUnwrap(s).payload;   // 🛡️ 先解存檔簽章（摘要顯示不驗章、僅取 payload；舊明文檔原樣回傳）
+    try { let d = JSON.parse(s); return _summaryFromPlayer(d && d.p); } catch(e){ return null; }
+}
+function slotSummary(n){
+    let online = (typeof onlineCloudAllySnapshotForSlot === 'function') ? onlineCloudAllySnapshotForSlot(n) : undefined;
+    return online !== undefined ? _summaryFromPlayer(online) : _summaryFromRaw(_lzGet('lineage_idle_save_' + n));
+}
 
 // ===== 角色多開／刪除保護 =====
 // 每個正在遊戲中的分頁每 2 秒留下心跳。刪角時只要還有其他活躍分頁就拒絕，

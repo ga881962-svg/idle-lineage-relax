@@ -1877,7 +1877,8 @@ function interactNPC(npcId, townId) {
     } else if (npc.id === 'npc_heine_guard') {
         renderCastleGuard(contentDiv, 'heine');
     } else if (npc.type === 'ally') {
-        renderAllyNPC(contentDiv);
+        if (typeof openAllyNPC === 'function') openAllyNPC(contentDiv);
+        else renderAllyNPC(contentDiv);
     } else if (npc.type === 'warehouse') {
         renderWarehouseNPC(contentDiv);   // 🔧 v2.6.77 正常情況已在 interactNPC 開頭早退開浮動倉庫；此分支僅剩 openWarehouseWindow 不存在時的舊式後備
     } else if (npc.type === 'petstore') {   // 🐾 v3.7.7 改依 type 分派（包武／奧斯丁共用同一個保管桶）——新增寵物保管 NPC 不必再回來加 id

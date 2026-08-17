@@ -380,6 +380,54 @@ function summonElementDamage(dice, ele, t, flatBonus, mult, mrPen) {
     return Math.max(1, Math.floor(Math.max(1, Math.floor(base * mrFactor)) * fragileMult(t) * elementCounterMult(ele, t.e)));   // 🔮 魔法不受物理 DR；脆弱＋屬性剋制仍保留
 }
 // ===== 協力角色：讀取其他存檔位(非當前)的角色，以其真實戰力(等級/能力/裝備)一起作戰 =====
+// Online mode has one source of truth: the signed-in account's latest
+// character checkpoint.  The guild roster is only an in-memory read cache;
+// it is refreshed whenever the guild is opened and is never written back.
+let _onlineAllyRoster = { key:'', slots:Object.create(null), loading:null };
+function _onlineAllyRosterKey() {
+    if (typeof window === 'undefined' || typeof window.onlineAuthIsSignedIn !== 'function' || !window.onlineAuthIsSignedIn()) return '';
+    let account = player && player.cloudAccountId ? String(player.cloudAccountId) : '';
+    let character = (typeof window.onlineCloudCharacterId === 'function') ? String(window.onlineCloudCharacterId() || '') : '';
+    return account && character ? account + ':' + character : '';
+}
+function onlineCloudAllySnapshotForSlot(slotN) {
+    let key = _onlineAllyRosterKey();
+    if (!key) return undefined; // actual offline/local-only mode
+    if (_onlineAllyRoster.key !== key) return null; // online must never fall back to an old local save
+    return _onlineAllyRoster.slots[String(slotN)] || null;
+}
+async function refreshOnlineAllyRoster() {
+    let key = _onlineAllyRosterKey();
+    if (!key || typeof window.onlineCloudAllySnapshots !== 'function') return false;
+    if (_onlineAllyRoster.loading && _onlineAllyRoster.loading.key === key) return _onlineAllyRoster.loading.promise;
+    let promise = Promise.resolve(window.onlineCloudAllySnapshots()).then(rows => {
+        if (_onlineAllyRosterKey() !== key) return false; // another account/character won the race
+        let slots = Object.create(null);
+        (Array.isArray(rows) ? rows : []).forEach(row => {
+            let slot = String(row && row.slot != null ? row.slot : '');
+            let state = row && row.state;
+            let source = state && state.p;
+            if (slot && source && source.cls) slots[slot] = source;
+        });
+        _onlineAllyRoster = { key:key, slots:slots, loading:null };
+        return true;
+    }).catch(() => {
+        if (_onlineAllyRosterKey() === key) _onlineAllyRoster = { key:'', slots:Object.create(null), loading:null };
+        return false;
+    });
+    _onlineAllyRoster.loading = { key:key, promise:promise };
+    return promise;
+}
+function openAllyNPC(div) {
+    let key = _onlineAllyRosterKey();
+    if (!key) { renderAllyNPC(div); return; }
+    div.innerHTML = '<div class="p-3 text-sm text-slate-400">正在讀取角色存檔…</div>';
+    refreshOnlineAllyRoster().then(ok => {
+        if (key !== _onlineAllyRosterKey() || !div || !div.isConnected) return;
+        if (!ok) { div.innerHTML = '<div class="p-3 text-sm text-red-300">角色存檔讀取失敗，請稍後重試。</div>'; return; }
+        renderAllyNPC(div);
+    });
+}
 function allySlotList() { return ['1','2','3','4','5','6','7','8'].filter(n => n !== String(currentSlot)); }   // 8 格存檔：可招募自身以外全部 7 個角色。
 const ALLY_ACTIVE_MAX = 3;         // 非王族協力傭兵上限。
 const ROYAL_ALLY_ACTIVE_MAX = 7;   // 王族最多帶滿帳號其餘 7 個角色。
@@ -447,6 +495,8 @@ function _mercEmploymentWrite(classicMode, rows) {
     return _lsSet(_mercEmploymentKey(classicMode), JSON.stringify(clean));
 }
 function _mercSavedRole(slotN) {
+    let online = onlineCloudAllySnapshotForSlot(slotN);
+    if (online !== undefined) return online;
     try {
         let u = _saveUnwrap(_lzGet('lineage_idle_save_' + String(slotN)));
         if (!u || !u.ok || !u.payload) return null;
@@ -745,9 +795,12 @@ function purgeReplacedAllies() {
 }
 function buildAlly(slotN) {
     slotN = String(slotN);
-    let raw = _saveUnwrap(_lzGet('lineage_idle_save_' + slotN)).payload;   // 🛡️ 先解存檔簽章（招募傭兵讀別的存檔位；不驗章、僅取 payload）
-    if (!raw) return null;
-    let p; try { p = JSON.parse(raw).p; } catch(e) { return null; }
+    let p = onlineCloudAllySnapshotForSlot(slotN);
+    if (p === undefined) {
+        let raw = _saveUnwrap(_lzGet('lineage_idle_save_' + slotN)).payload;   // Offline/local-only compatibility only.
+        if (!raw) return null;
+        try { p = JSON.parse(raw).p; } catch(e) { return null; }
+    }
     if (!p || !p.cls) return null;
     let ally = JSON.parse(JSON.stringify(p));   // 深拷貝，不動原存檔
     ally._mercPermanentPotions = true;   // 🤝 全職常駐加速；勇敢/餅乾/慎重依職業於 recomputeStats 套用
@@ -3374,6 +3427,13 @@ function refreshAllyOnce(slotN) {
 //    否則「進村→關分頁→重載」會把同一筆 _expGained 重複記帳＝無限刷經驗（v2.6.69 審計#2 踩過的坑）。
 function refreshAllAllies() {
     try {
+        // A server roster is needed to rebuild an online ally.  Wait for the
+        // read-only refresh instead of accidentally consulting localStorage.
+        let onlineKey = _onlineAllyRosterKey();
+        if (onlineKey && _onlineAllyRoster.key !== onlineKey) {
+            refreshOnlineAllyRoster().then(ok => { if (ok && _onlineAllyRosterKey() === onlineKey) refreshAllAllies(); });
+            return 0;
+        }
         let slots = ((player && player.allies) || []).map(a => a && a._slot).filter(s => s != null);
         if (!slots.length) return 0;
         let n = 0;
