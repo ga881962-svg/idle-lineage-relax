@@ -484,7 +484,11 @@ async function purchaseMercenaryGuildPass() {
     }
     let div = document.getElementById('interaction-content'); if (div) renderAllyNPC(div);
 }
+// 傭兵公會目前僅保留 NPC 說明頁，所有互動入口暫停開放。
+// 既有傭兵快照與月卡資料不在這裡刪除或修改。
+const MERCENARY_GUILD_OPEN = false;
 function openAllyNPC(div) {
+    if (!MERCENARY_GUILD_OPEN) { renderAllyNPC(div); return; }
     let key = _onlineAllyRosterKey();
     if (!key) { renderAllyNPC(div); return; }
     div.innerHTML = '<div class="p-3 text-sm text-slate-400">正在讀取角色存檔…</div>';
@@ -4132,6 +4136,10 @@ function renderAllyQuestManager(div, slotN) {
     div.innerHTML = `<div class="flex flex-col gap-3 p-1"><div class="flex items-center justify-between gap-2"><div><div class="text-amber-300 font-bold">${ctx.ally._allyName || source.name || ('存檔 ' + ctx.slotN)} 的專屬任務</div><div class="text-xs text-slate-400">達到等級即可由隊長接取；任務道具、交付與獎勵皆歸隊員本人。</div></div><button onclick="closeAllyQuestManager()" class="btn py-1 px-3 text-xs bg-slate-700 border-slate-500 text-slate-100">返回</button></div><div class="flex flex-col gap-2">${rows}${fifty}</div></div>`;
 }
 function renderAllyNPC(div) {
+    if (!MERCENARY_GUILD_OPEN) {
+        div.innerHTML = `<div class="flex flex-col gap-3 p-1"><div class="rounded border border-amber-700/70 bg-slate-900/70 px-4 py-4"><div class="font-bold text-amber-300">傭兵公會目前暫停開放</div><div class="mt-2 text-sm leading-relaxed text-slate-300">傭兵召喚、裝備管理、任務與月卡購買目前均暫不提供使用。既有角色、傭兵與相關資料均不會因此刪除或變更，待日後重新開放時再使用。</div></div></div>`;
+        return;
+    }
     const _activeCap = allyActiveCap();
     const _royalCha = Math.max(0, Math.floor((player.d && player.d.cha) || 0));
     const _capHint = player.cls === 'royal'
