@@ -654,19 +654,10 @@ async function departToLastBattle() {
         // not continue into the old client-side map/key/scroll code path.
         return;
     }
-    // Online death/return uses the same canonical entry RPC.  It obtains the
-    // target from server-owned last-adventure state, re-checks every map
-    // prerequisite, consumes only canonical consumables, and restores the
-    // resulting server state.  There is intentionally no local fallback.
-    if (typeof window.offlineHuntReturnToLastMap === 'function'
-        && typeof window.onlineCloudSessionToken === 'function' && window.onlineCloudSessionToken()) {
-        const returned = await window.offlineHuntReturnToLastMap('death_return');
-        if (!returned || !returned.allowed) {
-            const reason = returned && returned.reason ? returned.reason : 'MAP_UNAVAILABLE';
-            logSys('<span class="text-amber-300">無法返回原練功地圖：' + reason + '。</span>');
-        }
-        return;
-    }
+    // Ordinary online "Depart" is not an offline/death return.  It keeps the
+    // established travel flow below and must never inherit Offline Pass
+    // entitlement checks.  Only the explicit settlement follow-up above uses
+    // the server-owned offline return path.
     if (isHiddenArea(tgt)) { enterHiddenArea(tgt); return; }   // 🏛️ 上一張為隱藏狩獵區域→直接 force 重進（繞過選單可選性檢查）
     if (tgt === 'rift_battle') { logSys('<span class="text-violet-300">扭曲的時空已經崩塌消失，沒有可以出發的地圖。</span>'); return; }   // 🌀 裂痕已崩塌：不可用「出發」重進，須在入口以龜裂之核重新進入
     // 🔧 攻城結束後，上一張戰鬥地圖若為攻城區（外門/內城）：強制改往新手修練場，避免重新進入已結束的攻城區
