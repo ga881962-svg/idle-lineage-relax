@@ -4399,3 +4399,59 @@ button.classic-skill-cell { cursor:pointer; }
   #mobile-bottom-nav button span { font-size:20px !important; }
   #pwa-install-button { bottom:calc(64px + env(safe-area-inset-bottom,0px)); right:max(8px,env(safe-area-inset-right)); min-height:36px; padding:0 10px; font-size:12px; }
 }
+
+/* Mobile viewport follow-up: safe-area spacing and scroll ownership only.
+   This deliberately changes no controls, data, or game behaviour. */
+@media (max-width:700px) {
+  /* The final density rules previously replaced the earlier top inset. Keep
+     every mobile page below the iOS status/Dynamic Island area. */
+  #game-screen {
+    padding-top:calc(6px + env(safe-area-inset-top, 0px)) !important;
+    scroll-padding-top:calc(6px + env(safe-area-inset-top, 0px));
+  }
+  #mobile-vitals { padding-right:14px !important; }
+  #mobile-vitals .mv-diamond { margin-right:5px; }
+
+  /* Settings use natural height first. Its own body scrolls only after it
+     actually exceeds the available phone viewport. */
+  #game-screen[data-mobile-page="settings"] #col-left { min-height:0 !important; }
+  #game-screen[data-mobile-page="settings"] #left-automation-panel { overflow:visible !important; }
+  #game-screen[data-mobile-page="settings"] #left-automation-content {
+    max-height:calc(100dvh - env(safe-area-inset-top, 0px) - 132px) !important;
+    overflow-y:auto !important;
+    overscroll-behavior:contain;
+  }
+  #game-screen[data-mobile-page="settings"] #tab-automation {
+    height:auto !important;
+    min-height:0 !important;
+    overflow:visible !important;
+  }
+
+  /* On the log page, the first interactive row begins after the HUD instead
+     of sharing its top edge. Log lists keep their existing own scrollbars. */
+  #game-screen[data-mobile-page="log"] #col-center { padding-top:4px; }
+  #game-screen[data-mobile-page="log"] #log-row { margin-top:0; }
+  #game-screen[data-mobile-page="log"] #combat-log-panel .panel-header,
+  #game-screen[data-mobile-page="log"] #syslog-panel .panel-header { position:relative; z-index:1; }
+
+  /* Bag navigation remains intact and sits below the HUD. The outer panel no
+     longer claims a large fixed height; only the existing inventory viewport
+     owns scrolling. */
+  #game-screen[data-mobile-page="bag"] #col-right {
+    height:calc(100dvh - env(safe-area-inset-top, 0px) - 132px) !important;
+    min-height:0 !important;
+    max-height:calc(100dvh - env(safe-area-inset-top, 0px) - 132px) !important;
+    overflow:hidden;
+  }
+  #game-screen[data-mobile-page="bag"] #col-right > .tab-bar { flex:0 0 auto; margin-top:4px; }
+  #game-screen[data-mobile-page="bag"] #tab-content-panel {
+    flex:1 1 0 !important;
+    min-height:0 !important;
+    height:auto !important;
+  }
+  #game-screen[data-mobile-page="bag"] #tab-items,
+  #game-screen[data-mobile-page="bag"] #tab-weapons,
+  #game-screen[data-mobile-page="bag"] #tab-armors { min-height:0 !important; overflow:hidden !important; }
+  #game-screen[data-mobile-page="bag"] .classic-inventory-shell { min-height:0 !important; }
+  #game-screen[data-mobile-page="bag"] .classic-inventory-viewport { overscroll-behavior:contain; }
+}
