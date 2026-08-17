@@ -682,6 +682,7 @@
     // Server-side marketplace actions advance the checkpoint revision too.
     // Let those actions hand the latest revision back to the normal saver.
     window.onlineCloudCheckpointRevision = function (revision) {
+        if (arguments.length === 0) return cloudSync.revision;
         revision = Number(revision);
         if (Number.isFinite(revision) && revision >= 0) cloudSync.revision = revision;
     };

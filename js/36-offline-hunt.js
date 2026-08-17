@@ -24,7 +24,6 @@
     let armTimer = null;
     let lastArmedMap = '';
     let settling = false;
-    const killReports = new Set();
 
     function currentMapId() {
         return (typeof mapState !== 'undefined' && mapState && mapState.current) ? String(mapState.current) : '';
@@ -148,16 +147,27 @@
     async function refreshDepartureAfterCheckpoint() {
         if (!onlineReady() || !isCombatMap(currentMapId())) return false;
         const mapId = currentMapId();
+        if (typeof window.ensureOnlineSponsorPassStatus === 'function') await window.ensureOnlineSponsorPassStatus();
+        const recentRate = typeof window.offlineHuntRecentTenMinuteSnapshot === 'function'
+            ? window.offlineHuntRecentTenMinuteSnapshot() : null;
+        if (!recentRate) return false;
         try {
             const result = await window.onlineCloudApi({
                 action: 'offline.arm',
                 characterId: window.onlineCloudCharacterId(),
                 mapId: mapId,
+                recentRate: recentRate,
                 requestId: typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : ''
             });
             if (result && result.armed) lastArmedMap = mapId;
             return !!(result && result.armed);
         } catch (error) {
+            if (/OFFLINE_SNAPSHOT_REJECTED/i.test(String(error && (error.message || error)))) {
+                // The server has persisted the anomaly and invalidated this
+                // session.  Do not retry the submitted rate or arm locally.
+                if (typeof window.onlineAuthSignOut === 'function') await window.onlineAuthSignOut();
+                return false;
+            }
             console.warn('offline departure was not armed', error);
             return false;
         }
@@ -193,21 +203,42 @@
         }
     }
     async function canReturnToLastMap(mapId) {
-        if (!onlineReady() || !mapId) return false;
+        if (!onlineReady()) return { allowed: false, reason: 'MAP_UNAVAILABLE' };
         try {
             const result = await window.onlineCloudApi({
                 action: 'offline.return.check',
-                characterId: window.onlineCloudCharacterId(),
-                mapId: String(mapId)
+                characterId: window.onlineCloudCharacterId()
             });
-            return !!(result && result.allowed);
+            return result && typeof result === 'object' ? result : { allowed: false, reason: 'MAP_UNAVAILABLE' };
         } catch (error) {
             console.warn('offline return validation unavailable', error);
-            return false;
+            return { allowed: false, reason: 'MAP_UNAVAILABLE' };
         }
     }
 
-    function recordKill(mobId, mapId) {
+    async function returnToLastMap(context) {
+        if (!onlineReady()) return { allowed: false, reason: 'MAP_UNAVAILABLE' };
+        const check = await canReturnToLastMap();
+        if (!check.allowed || !check.mapId) return check;
+        try {
+            const result = await window.onlineCloudApi({
+                action: context === 'offline_return' ? 'offline.return' : 'map.entry', characterId: window.onlineCloudCharacterId(), mapId: check.mapId,
+                context: context || 'death_return',
+                revision: typeof window.onlineCloudCheckpointRevision === 'function' ? window.onlineCloudCheckpointRevision() : -1,
+                requestId: typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : ''
+            });
+            if (result && result.state) applyAuthoritativeState(result.state, result.revision);
+            return result && typeof result === 'object' ? result : { allowed: false, reason: 'MAP_UNAVAILABLE' };
+        } catch (error) {
+            const message = String(error && (error.message || error.error || error) || 'MAP_UNAVAILABLE');
+            if (/CHECKPOINT_CONFLICT/i.test(message) && typeof window.onlineCloudRestoreCheckpoint === 'function') await window.onlineCloudRestoreCheckpoint();
+            return { allowed: false, reason: (message.match(/(MISSING_SCROLL|MISSING_KEY|SHIP_REQUIRED|LEVEL_REQUIRED|QUEST_REQUIRED|PASS_REQUIRED|MAP_UNAVAILABLE|PVP_RETURN_DISABLED)/) || [])[1] || 'MAP_UNAVAILABLE' };
+        }
+    }
+
+    /* Legacy per-kill sampling is intentionally disabled: canonical offline
+       departures use only the observed rolling ten-minute snapshot. */
+    /* function recordKill(mobId, mapId) {
         if (!onlineReady() || !mobId || !mapId || !isCombatMap(mapId)) return false;
         const requestId = typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : '';
         if (!requestId || killReports.has(requestId)) return false;
@@ -229,6 +260,7 @@
         return true;
     }
 
+    */
     window.offlineHuntRules = { maxHours: 12, serverAuthoritative: true };
     window.offlineHuntSetDeparture = armDeparture;
     window.offlineHuntResolve = settleOnLogin;
@@ -236,5 +268,5 @@
     window.offlineHuntRefreshDeparture = refreshDepartureAfterCheckpoint;
     window.offlineHuntDisarm = disarm;
     window.offlineHuntCanReturn = canReturnToLastMap;
-    window.offlineHuntRecordKill = recordKill;
+    window.offlineHuntReturnToLastMap = returnToLastMap;
 }());

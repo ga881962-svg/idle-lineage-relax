@@ -80,6 +80,45 @@ const MAP_CATEGORIES = {
         {v:'pirate_dungeon', t:'海賊島地監', c:'#38bdf8'}
     ]
 };
+
+// Server catalogue input for every path that re-enters an adventure map.
+// MAP_CATEGORIES remains the single source for ordinary entry prerequisites;
+// this table only describes flows that are intentionally not a normal direct
+// map-selection entry.  The catalog builder reads both declarations and
+// produces the versioned server map-entry catalogue.  Do not add a separate
+// client-only return exception.
+const MAP_ENTRY_RETURN_RULES = {
+    // These journeys are entered through their own NPC/flow.  A death/offline
+    // return must never skip that flow or its cost/state transitions.
+    oblivion_travel: { entryType: 'ship', returnBehavior: 'deny', returnReason: 'SHIP_REQUIRED' },
+    oblivion_island: { entryType: 'ship', returnBehavior: 'deny', returnReason: 'SHIP_REQUIRED' },
+    // A collapsed rift is not a persistent adventure destination.
+    rift_battle: { entryType: 'event', returnBehavior: 'deny', returnReason: 'MAP_UNAVAILABLE' },
+    // Dynamic areas require live state that is intentionally not represented
+    // by a static map-entry rule.  Return therefore fails closed.
+    pvp_arena: { entryType: 'pvp', returnBehavior: 'deny', returnReason: 'PVP_RETURN_DISABLED' },
+    duel_arena: { entryType: 'pvp', returnBehavior: 'deny', returnReason: 'PVP_RETURN_DISABLED' }
+};
+
+function mapEntryRuleOf(mapId) {
+    const entry = mapEntryOf(mapId) || {};
+    const explicit = MAP_ENTRY_RETURN_RULES[mapId] || {};
+    const prideTier = typeof entry.prideReq === 'number' ? entry.prideReq : null;
+    return {
+        mapId: mapId,
+        entryType: explicit.entryType || (entry.needKey ? 'key' : (entry.prideReq ? 'tower' : 'direct')),
+        levelRequirement: entry.levelReq || null,
+        questRequirement: entry.questReq || null,
+        affinityRequirement: entry.affinityReq || null,
+        requiredItem: entry.keyHoldReq || null,
+        consumableItem: entry.needKey || null,
+        consumableQuantity: entry.needKey ? 1 : 0,
+        prideRequirement: entry.prideReq || null,
+        prideTier: prideTier,
+        returnBehavior: explicit.returnBehavior || 'validate',
+        returnReason: explicit.returnReason || null
+    };
+}
 // ===== 🗺️ 地圖「地區」分類（依 map_categories.md：城堡/銀騎士村/.../席琳神殿）=====
 //  下拉選單改以「地區」分組顯示；MAP_CATEGORIES（村莊/野外/地監…）維持原樣，仍是掉落(js/05)/魔物追蹤(obelMapList)/背景(applyAreaBackground)等遊戲邏輯依據。
 //  每筆只記 {v, t}：t＝下拉顯示名（可較 MAP_CATEGORIES 原名精確，如「奇岩城鎮/奇岩周邊」）；顏色 c 與進入條件(needKey/questReq/prideReq…)一律由 MAP_CATEGORIES 對應項解析，免重複維護。
@@ -599,20 +638,34 @@ async function departToLastBattle() {
         return;
     }
     let tgt = player.lastBattleMap;
-    // Only the one automatic follow-up to a server-recorded offline revival
-    // requires offline.return.check.  Normal "depart" travel must not be
-    // gated by an offline pass or by a previous settlement.
+    // The one automatic follow-up to an offline settlement must never replay
+    // a client-side `lastBattleMap`.  The server owns the recorded map and
+    // applies exactly the same entry rule/consumption as any valid return.
     const offlineReturnPending = !!player._offlineServerReturnPending;
-    if (offlineReturnPending && typeof window.offlineHuntCanReturn === 'function'
-        && typeof window.onlineCloudSessionToken === 'function'
-        && window.onlineCloudSessionToken()) {
-        const allowed = await window.offlineHuntCanReturn(tgt);
-        if (!allowed) {
-            delete player._offlineServerReturnPending;
-            logSys('<span class="text-amber-300">需要有效的「離線掛機（30 天）」月卡，且原練功地圖必須允許自動返回。</span>');
-            return;
-        }
+    if (offlineReturnPending && typeof window.offlineHuntReturnToLastMap === 'function'
+        && typeof window.onlineCloudSessionToken === 'function' && window.onlineCloudSessionToken()) {
+        const returned = await window.offlineHuntReturnToLastMap('offline_return');
         delete player._offlineServerReturnPending;
+        if (!returned || !returned.allowed) {
+            const reason = returned && returned.reason ? returned.reason : 'MAP_UNAVAILABLE';
+            logSys('<span class="text-amber-300">無法返回原練功地圖：' + reason + '。</span>');
+        }
+        // The RPC has already restored the exact server checkpoint/map. Do
+        // not continue into the old client-side map/key/scroll code path.
+        return;
+    }
+    // Online death/return uses the same canonical entry RPC.  It obtains the
+    // target from server-owned last-adventure state, re-checks every map
+    // prerequisite, consumes only canonical consumables, and restores the
+    // resulting server state.  There is intentionally no local fallback.
+    if (typeof window.offlineHuntReturnToLastMap === 'function'
+        && typeof window.onlineCloudSessionToken === 'function' && window.onlineCloudSessionToken()) {
+        const returned = await window.offlineHuntReturnToLastMap('death_return');
+        if (!returned || !returned.allowed) {
+            const reason = returned && returned.reason ? returned.reason : 'MAP_UNAVAILABLE';
+            logSys('<span class="text-amber-300">無法返回原練功地圖：' + reason + '。</span>');
+        }
+        return;
     }
     if (isHiddenArea(tgt)) { enterHiddenArea(tgt); return; }   // 🏛️ 上一張為隱藏狩獵區域→直接 force 重進（繞過選單可選性檢查）
     if (tgt === 'rift_battle') { logSys('<span class="text-violet-300">扭曲的時空已經崩塌消失，沒有可以出發的地圖。</span>'); return; }   // 🌀 裂痕已崩塌：不可用「出發」重進，須在入口以龜裂之核重新進入

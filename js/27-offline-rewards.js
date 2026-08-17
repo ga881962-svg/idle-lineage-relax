@@ -46,6 +46,9 @@
     let _offlineRoleDetached = false;
     let _offlineSurvivalRuntime = null;
     let _offlineSurvivalTickCtx = null;
+    // Online offline-hunt departure uses only this rolling ten-minute view.
+    // It observes the existing normal reward flow; it never grants anything.
+    let _offlineRewardCapture = null;
     // ⚠️ 背景分頁期間任何存檔（js/01 每 5 分鐘自動存檔在背景仍會觸發）都不得把 awaySince／
     //    checkpoint.lastActive 往後推，否則離線時長永遠湊不滿 1 分鐘下限、資格也會因
     //    「最後擊殺超過 5 分鐘」被翻成 false → 回前景永遠結不了帳。
@@ -333,7 +336,9 @@
             gold: 0,
             petExp: 0,
             allyExp: 0,
-            mobKills: Object.create(null)
+            mobKills: Object.create(null),
+            recentRewards: [],
+            recentItems: []
         };
         _offlineResetSurvivalRuntime(map);
     }
@@ -493,6 +498,8 @@
         rt.gold += Math.max(0, Math.floor(_offlineFinite(goldGain, 0)));
         rt.petExp += Math.max(0, Math.floor(_offlineFinite(petExpGain, 0)));
         rt.allyExp += Math.max(0, Math.floor(_offlineFinite(allyExpGain, 0)));
+        rt.recentRewards.push({ at: now, exp: Math.max(0, Math.floor(_offlineFinite(expGain, 0))), gold: Math.max(0, Math.floor(_offlineFinite(goldGain, 0))) });
+        _offlinePruneRecentRewards(rt, now);
         let snap = _offlineMobProfile({
             n: mob && mob.n,
             count: 1,
@@ -509,6 +516,56 @@
             else if (Object.keys(rt.mobKills).length < OFFLINE_MAX_MOB_PROFILES) rt.mobKills[key] = snap;
         }
     }
+
+    function _offlinePruneRecentRewards(rt, now) {
+        if (!rt) return;
+        const cutoff = now - 10 * 60 * 1000;
+        rt.recentRewards = (rt.recentRewards || []).filter(row => row && row.at >= cutoff);
+        rt.recentItems = (rt.recentItems || []).filter(row => row && row.at >= cutoff);
+    }
+
+    function _offlineRecordRecentItem(id, count, now) {
+        const rt = _offlineRuntime;
+        if (!rt || !_offlineRewardCapture || _offlineRewardCapture.map !== rt.map) return;
+        id = String(id || '');
+        count = Math.floor(_offlineFinite(count, 0));
+        if (!id || count < 1) return;
+        rt.recentItems.push({ at: now, id: id, count: count });
+        _offlinePruneRecentRewards(rt, now);
+    }
+
+    // This is the only client payload used when arming an online departure.
+    // It represents rewards observed during the most recent rolling 10 minutes,
+    // not accumulated session history and not a locally simulated reward.
+    window.offlineHuntRecentTenMinuteSnapshot = function () {
+        const now = _offlineNow();
+        const rt = _offlineRuntime;
+        const map = typeof mapState !== 'undefined' && mapState ? String(mapState.current || '') : '';
+        if (!rt || rt.map !== map) return null;
+        _offlinePruneRecentRewards(rt, now);
+        const rewards = rt.recentRewards || [];
+        if (!rewards.length) return null;
+        const firstAt = Math.min.apply(null, rewards.map(row => row.at));
+        const observedSeconds = Math.max(1, Math.min(600, Math.floor((now - firstAt) / 1000)));
+        if (observedSeconds < 30) return null;
+        const scale = 600 / observedSeconds;
+        const totals = rewards.reduce((sum, row) => ({ exp: sum.exp + row.exp, gold: sum.gold + row.gold }), { exp: 0, gold: 0 });
+        const items = Object.create(null);
+        (rt.recentItems || []).forEach(row => { items[row.id] = (items[row.id] || 0) + row.count; });
+        Object.keys(items).forEach(id => { items[id] = Math.floor(items[id] * scale); });
+        // These booleans declare whether the observed rate already includes the
+        // live monthly-pass multiplier. The server cross-checks them against its
+        // own pass rows and removes—not adds—the multiplier after expiry.
+        const passes = (typeof window.onlineSponsorPassSnapshot === 'function' && window.onlineSponsorPassSnapshot()) || {};
+        return {
+            windowSeconds: 600,
+            observedSeconds: observedSeconds,
+            exp: Math.floor(totals.exp * scale),
+            gold: Math.floor(totals.gold * scale),
+            items: items,
+            includedPasses: { exp: !!passes.exp, gold: !!passes.gold, drop: !!passes.drop }
+        };
+    };
 
     function _offlineRecordBossKill(mob, map, expGain, goldGain, petExpGain, allyExpGain, now) {
         let st = _offlineEnsureState();
@@ -1893,7 +1950,10 @@
                     bossAllyBefore = null;
                 }
             }
-            let result = _offlineOriginalKillMob.apply(this, arguments);
+            _offlineRewardCapture = tracked ? { map: String(map) } : null;
+            let result;
+            try { result = _offlineOriginalKillMob.apply(this, arguments); }
+            finally { _offlineRewardCapture = null; }
             if (tracked && mob && mob._dead) {
                 let afterProgress = _offlineExpProgress(player.lv, player.exp);
                 let now = _offlineNow();
@@ -1921,6 +1981,17 @@
                     _offlineRecordKill(mob, map, expGain, goldGain, partyExp.pet, partyExp.ally, now);
                 }
             }
+            return result;
+        };
+    }
+
+    // Capture only items granted from the normal kill path above.  This wrapper
+    // deliberately does not alter gainItem(), inventory, probability, or UI.
+    const _offlineOriginalGainItem = window.gainItem;
+    if (typeof _offlineOriginalGainItem === 'function') {
+        window.gainItem = function (id, count) {
+            const result = _offlineOriginalGainItem.apply(this, arguments);
+            _offlineRecordRecentItem(id, count == null ? 1 : count, _offlineNow());
             return result;
         };
     }

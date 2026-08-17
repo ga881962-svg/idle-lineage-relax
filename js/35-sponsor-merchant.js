@@ -6,9 +6,7 @@
         exp:     { name: '經驗加倍 x1.2（30 天）', price: 199, multiplier: 1.2, note: '打怪獲得的經驗值提高 20%。' },
         gold:    { name: '金幣加倍 x1.2（30 天）', price: 199, multiplier: 1.2, note: '怪物掉落的金幣提高 20%。' },
         drop:    { name: '掉落加倍 x1.2（30 天）', price: 199, multiplier: 1.2, note: '怪物的物品掉落機率提高 20%。' },
-        // Offline settlement is not part of this rollout. Do not sell a pass
-        // that would promise a feature the server has not enabled yet.
-        offline: { name: '離線掛機（即將開放）', price: 599, multiplier: 1, note: '離線掛機仍在伺服器驗證階段，暫不開放購買。', available:false }
+        offline: { name: '離線掛機（30 天）', price: 599, multiplier: 1, note: '離線收益依關閉遊戲前最後 10 分鐘正常掛機成果，由伺服器結算。' }
     };
     // The offline pass is intentionally different from the legacy visual
     // boosters: its validity and purchase balance are always read from the
@@ -86,10 +84,16 @@
                 action:'sponsor.pass.status', characterId:window.onlineCloudCharacterId(),
                 requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : ''
             });
+            const offline = await window.onlineCloudApi({
+                action:'offline.status', characterId:window.onlineCloudCharacterId(),
+                requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : ''
+            });
             if (accountKey !== onlineSponsorAccountKey()) return sponsorPassStatus;
             sponsorPassStatus = {
                 loaded:true, loading:false, accountKey:accountKey,
-                passes:(result && result.passes && typeof result.passes === 'object') ? result.passes : {},
+                passes:Object.assign({}, (result && result.passes && typeof result.passes === 'object') ? result.passes : {}, {
+                    offline:String((offline && offline.expiresAt) || '')
+                }),
                 sponsorDiamonds:Number((result && result.sponsorDiamonds) || 0)
             };
         } catch (error) {
@@ -98,6 +102,7 @@
         }
         return sponsorPassStatus;
     }
+    window.ensureOnlineSponsorPassStatus = refreshSponsorPasses;
     window.setOnlineSponsorWalletBalance = function (balance) {
         if (!onlineSponsorWalletReady()) return;
         const accountKey = resetSponsorStatusForCurrentAccount();
@@ -113,6 +118,12 @@
     function remaining(kind) { let ms = Math.max(0, untilFor(kind) - Date.now()); return ms ? ('剩餘 ' + Math.ceil(ms / 86400000) + ' 天') : '未啟用'; }
     window.sponsorGetMultiplier = function (kind) { return active(kind) && PASSES[kind] ? PASSES[kind].multiplier : 1; };
     window.sponsorDropMultiplier = function () { return window.sponsorGetMultiplier('drop'); };
+    // Departure snapshots need to know whether their observed ten-minute rate
+    // already contains a live pass multiplier.  This is read-only server status;
+    // the server independently cross-checks it when arming.
+    window.onlineSponsorPassSnapshot = function () {
+        return { exp: active('exp'), gold: active('gold'), drop: active('drop') };
+    };
 
     window.ensureTownSponsorMerchants = function () {
         if (typeof DB === 'undefined' || !DB.towns) return;
@@ -146,7 +157,13 @@
         let pass = PASSES[kind]; if (!pass || pass.available === false || !currentPlayer()) return;
         if (!offlineOnlineReady()) { if (typeof logSys === 'function') logSys('<span class="text-red-300">請先登入雲端帳號後再購買贊助券。</span>'); return; }
         try {
-            const result = await window.onlineCloudApi({ action:'sponsor.pass.purchase', characterId:window.onlineCloudCharacterId(), kind:kind, requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : '' });
+            const request = {
+                action: kind === 'offline' ? 'offline.pass.purchase' : 'sponsor.pass.purchase',
+                characterId:window.onlineCloudCharacterId(),
+                requestId:typeof window.onlineCloudRequestId === 'function' ? window.onlineCloudRequestId() : ''
+            };
+            if (kind !== 'offline') request.kind = kind;
+            const result = await window.onlineCloudApi(request);
             sponsorPassStatus.sponsorDiamonds = Math.max(0, Math.floor(Number(result.sponsorDiamonds) || 0));
             sponsorPassStatus.passes = Object.assign({}, sponsorPassStatus.passes, (function(){ let p={}; p[kind]=String(result.expiresAt || ''); return p; }()));
             sponsorPassStatus.loaded = true;
