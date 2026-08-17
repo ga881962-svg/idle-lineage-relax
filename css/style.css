@@ -4267,3 +4267,135 @@ button.classic-skill-cell { cursor:pointer; }
   .mobile-live-grid { gap:5px 12px; font-size:13px; }
   .mobile-live-buffs { margin-top:7px; }
 }
+/* Mobile reference layout: density and ordering only.  Desktop stays on its
+   existing layout; no gameplay state, controls, or data source is changed. */
+@media (max-width:700px) {
+  #game-screen {
+    gap:5px !important;
+    overflow-x:hidden;
+    padding:4px 5px calc(66px + env(safe-area-inset-bottom, 0px)) !important;
+    scroll-padding-bottom:calc(66px + env(safe-area-inset-bottom, 0px));
+  }
+  #game-screen #col-center,
+  #game-screen #map-view-panel,
+  #game-screen #mobile-battle-controls,
+  #game-screen #mobile-live-panel { min-width:0; }
+
+  /* Shared two-row HUD: compact identity/account row, then equal HP/MP bars. */
+  #mobile-vitals { gap:3px !important; padding:4px 6px !important; }
+  #mobile-vitals .mv-summary {
+    display:flex !important;
+    flex-wrap:nowrap !important;
+    min-width:0;
+    gap:3px !important;
+    overflow:hidden;
+    color:#cbd5e1;
+    font-size:10.5px;
+    line-height:1.2;
+    white-space:nowrap;
+  }
+  #mobile-vitals .mv-summary strong {
+    flex:0 1 58px;
+    min-width:0;
+    max-width:58px;
+    overflow:hidden;
+    font-size:13px;
+    text-overflow:ellipsis;
+  }
+  #mobile-vitals .mv-summary > span { flex:0 0 auto; min-width:0; font-size:10.5px; }
+  #mobile-vitals .mv-summary b { font-size:11px; }
+  #mobile-vitals .mv-summary .mv-money { margin-left:auto; overflow:hidden; text-overflow:ellipsis; }
+  #mobile-vitals .mv-summary .mv-diamond { overflow:hidden; text-overflow:ellipsis; }
+  #mobile-vitals .mv-bars { gap:4px !important; }
+  #mobile-vitals .mv-bar { height:22px !important; border-width:1px !important; border-radius:5px !important; }
+  #mobile-vitals .mv-bar > span { font-size:11px !important; }
+
+  /* One operation bar: teleport, leave/town, category, map and drops. */
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header {
+    display:grid !important;
+    grid-template-columns:46px 46px minmax(0,1fr) minmax(0,1.25fr) 52px !important;
+    grid-template-rows:34px !important;
+    gap:3px !important;
+    min-height:0 !important;
+    padding:4px !important;
+  }
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header > div { display:contents !important; }
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #btn-teleport,
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #btn-return-town,
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #map-category,
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #map-select,
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #btn-map-drops {
+    grid-row:1 !important;
+    min-width:0 !important;
+    min-height:34px !important;
+    height:34px !important;
+    margin:0 !important;
+    padding:3px 4px !important;
+    font-size:11px !important;
+  }
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #btn-teleport { grid-column:1 !important; }
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #btn-return-town { grid-column:2 !important; }
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #map-category { grid-column:3 !important; }
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #map-select { grid-column:4 !important; }
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #btn-map-drops { grid-column:5 !important; white-space:normal !important; line-height:1.05; }
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #btn-pandora-shortcut,
+  #game-screen[data-mobile-page="battle"] #map-view-panel > .panel-header #btn-player-exchange { display:none !important; }
+
+  /* A fixed visual stage contains sprites and damage numbers without spending
+     a desktop-card-sized section of the phone viewport. */
+  #game-screen[data-mobile-page="battle"] #battle-view.area-fit:not(.hidden),
+  #game-screen[data-mobile-page="battle"] #battle-view:not(.area-fit):not(.hidden) {
+    height:clamp(210px, 58vw, 252px) !important;
+    min-height:clamp(210px, 58vw, 252px) !important;
+    overflow:hidden !important;
+    contain:layout paint;
+  }
+
+  /* Existing controls in compact rows; status grows only with readable text. */
+  #game-screen[data-mobile-page="battle"] #mobile-battle-controls { padding:6px 7px 7px !important; }
+  #mobile-battle-controls .mbc-scroll-options { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:4px !important; margin-bottom:5px !important; }
+  #mobile-battle-controls .mbc-scroll-options label { min-height:31px !important; padding:4px 5px !important; font-size:11px !important; line-height:1.15; }
+  #mobile-battle-controls input { width:17px !important; height:17px !important; flex:0 0 auto; }
+  #mobile-battle-controls .mbc-potion-row { grid-template-columns:minmax(0,1fr) 72px !important; gap:5px !important; }
+  #mobile-battle-controls .mbc-potion-info { min-height:38px !important; padding:4px 7px !important; font-size:12px !important; }
+  #mobile-battle-controls .mbc-potion-icon { font-size:19px !important; }
+  #mbc-potion-count { font-size:13px !important; }
+  #mbc-drink-button, #mbc-teleport-spell { min-height:38px !important; font-size:13px !important; }
+  #mbc-teleport-spell { margin-top:5px !important; }
+  #mobile-battle-controls .mbc-status-text { min-height:0 !important; margin-top:5px !important; padding:5px 7px !important; font-size:12px !important; line-height:1.35 !important; }
+
+  /* Realtime data remains directly after controls, as a compact two-column grid. */
+  #mobile-live-panel { padding:7px 8px 8px !important; }
+  #mobile-live-panel h3 { margin:0 0 4px !important; font-size:13px !important; }
+  .mobile-live-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:3px 10px !important; font-size:12px !important; }
+  .mobile-live-grid span { display:flex; justify-content:space-between; gap:5px; min-width:0; }
+  .mobile-live-buffs { margin-top:4px !important; }
+
+  /* Character/bag buttons stay a dense three-column grid; individual stats are
+     rows, not tall cards. */
+  #col-right > .tab-bar { grid-template-columns:repeat(3,minmax(0,1fr)) !important; gap:4px !important; padding:5px !important; }
+  #col-right > .tab-bar .btn { min-height:36px !important; padding:4px 2px !important; font-size:12px !important; border-radius:7px !important; }
+  #tab-stats .ability-detail-column > div { min-height:25px; padding-top:3px; padding-bottom:3px; font-size:12px; }
+
+  /* Settings only change density: existing groups, fields and checkboxes remain. */
+  #left-automation-panel #tab-automation { gap:6px !important; padding:7px !important; }
+  #left-automation-panel #tab-automation .bg-slate-800 { padding:7px !important; border-radius:7px !important; }
+  #left-automation-panel #tab-automation input:not([type="checkbox"]):not([type="range"]),
+  #left-automation-panel #tab-automation select { min-height:30px !important; padding:3px 6px !important; }
+  #left-automation-panel #tab-automation input[type="checkbox"] { width:18px; height:18px; }
+  #auto-buff-skills { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:4px 8px !important; }
+
+  /* Village keeps the same NPCs, but uses the requested compact two-column cards. */
+  #town-view > #town-npc-container.town-npc-cards { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:6px !important; padding:2px !important; }
+  .town-npc-card { min-height:88px !important; padding:9px 31px 8px 10px !important; border-radius:8px !important; }
+  .town-npc-card-name { font-size:15px !important; }
+  .town-npc-card-role { margin-top:2px !important; font-size:11px !important; }
+  .town-npc-card-desc { display:-webkit-box; margin-top:4px !important; overflow:hidden; font-size:11px !important; line-height:1.25 !important; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
+  .town-npc-card-icon { right:8px !important; top:10px !important; font-size:20px !important; }
+
+  /* Fixed navigation retains the safe area; scrollable content ends above it. */
+  #mobile-bottom-nav { height:calc(56px + env(safe-area-inset-bottom,0px)) !important; padding:3px 2px env(safe-area-inset-bottom,0px) !important; }
+  #mobile-bottom-nav button { font-size:10px !important; }
+  #mobile-bottom-nav button span { font-size:20px !important; }
+  #pwa-install-button { bottom:calc(64px + env(safe-area-inset-bottom,0px)); right:max(8px,env(safe-area-inset-right)); min-height:36px; padding:0 10px; font-size:12px; }
+}
