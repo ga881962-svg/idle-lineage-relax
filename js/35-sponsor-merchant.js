@@ -8,6 +8,7 @@
         drop:    { name: '掉落加倍 x1.2（30 天）', price: 199, multiplier: 1.2, note: '怪物的物品掉落機率提高 20%。' },
         offline: { name: '離線掛機（30 天）', price: 599, multiplier: 1, note: '離線收益依關閉遊戲前最後 10 分鐘正常掛機成果，由伺服器結算。' }
     };
+    const RENAME_CARD = { name:'角色改名卡', price:200, note:'輸入新名稱後由伺服器確認未重名才會改名。' };
     // The offline pass is intentionally different from the legacy visual
     // boosters: its validity and purchase balance are always read from the
     // server, never from a save file or the browser clock.
@@ -159,6 +160,8 @@
             let pass = PASSES[kind], on = active(kind), enough = pass.available !== false && diamonds >= pass.price;
             return '<div class="sponsor-shop-row"><div class="sponsor-shop-copy"><div class="sponsor-shop-name">' + pass.name + '</div><div class="sponsor-shop-note">' + pass.note + '</div><div class="sponsor-shop-status ' + (on ? 'is-active' : '') + '">' + (on ? ('✓ 已啟用・' + remaining(kind)) : '尚未啟用') + '</div></div><div class="sponsor-shop-buy"><span class="sponsor-diamond">◆ ' + pass.price + '</span><button class="btn ' + (enough ? 'sponsor-buy-ready' : 'sponsor-buy-disabled') + '" ' + (enough ? '' : 'disabled') + ' onclick="sponsorBuy(\'' + kind + '\')">' + (pass.available === false ? '即將開放' : (enough ? '購買 30 天' : '鑽石不足')) + '</button></div></div>';
         }).join('');
+        let renameEnough = onlineSponsorWalletReady() && diamonds >= RENAME_CARD.price;
+        rows += '<div class="sponsor-shop-row"><div class="sponsor-shop-copy"><div class="sponsor-shop-name">' + RENAME_CARD.name + '</div><div class="sponsor-shop-note">' + RENAME_CARD.note + '</div><div class="sponsor-shop-status">一次性使用・不接受重名</div></div><div class="sponsor-shop-buy"><span class="sponsor-diamond">◆ ' + RENAME_CARD.price + '</span><button class="btn ' + (renameEnough ? 'sponsor-buy-ready' : 'sponsor-buy-disabled') + '" ' + (renameEnough ? '' : 'disabled') + ' onclick="sponsorOpenRenameCard()">使用改名卡</button></div></div>';
         div.innerHTML = '<div class="sponsor-merchant"><div class="sponsor-merchant-head"><div><div class="sponsor-title">贊助使者 <span>[贊助領取]</span></div><p>歡迎，冒險者。所有加成可以續購並累加天數。</p></div><div class="sponsor-balance">◆ 贊助鑽石：<b>' + Number(diamonds || 0).toLocaleString() + '</b></div></div><div class="sponsor-shop-list">' + rows + '</div></div>';
         if (!sponsorPassStatus.loaded && !sponsorPassStatus.loading && offlineOnlineReady()) {
             refreshSponsorPasses().then(function () {
@@ -188,6 +191,45 @@
             console.warn('sponsor pass purchase failed', error);
             if (typeof logSys === 'function') logSys('<span class="text-red-300">贊助券購買失敗，請重新登入後再試。</span>');
         }
+    };
+    function closeRenameCardDialog() {
+        const dialog = document.getElementById('sponsor-rename-card-dialog');
+        if (dialog) dialog.remove();
+    }
+    window.sponsorOpenRenameCard = function () {
+        if (!onlineSponsorWalletReady()) return;
+        closeRenameCardDialog();
+        const dialog = document.createElement('div');
+        dialog.id = 'sponsor-rename-card-dialog';
+        dialog.className = 'sponsor-rename-card-dialog';
+        dialog.innerHTML = '<div class="sponsor-rename-card-box" role="dialog" aria-modal="true" aria-labelledby="sponsor-rename-card-title"><h3 id="sponsor-rename-card-title">角色改名卡</h3><p>消耗 ◆ 200 贊助鑽石。名稱由伺服器檢查，不能和其他角色重複。</p><input id="sponsor-rename-card-input" type="text" maxlength="20" autocomplete="off" placeholder="輸入 1 至 20 個字的新名稱"><div id="sponsor-rename-card-message" class="sponsor-rename-card-message"></div><div class="sponsor-rename-card-actions"><button type="button" class="btn" id="sponsor-rename-card-cancel">取消</button><button type="button" class="btn sponsor-buy-ready" id="sponsor-rename-card-confirm">確認改名</button></div></div>';
+        dialog.addEventListener('click', function (event) { if (event.target === dialog) closeRenameCardDialog(); });
+        document.body.appendChild(dialog);
+        const input = dialog.querySelector('#sponsor-rename-card-input');
+        const message = dialog.querySelector('#sponsor-rename-card-message');
+        const confirm = dialog.querySelector('#sponsor-rename-card-confirm');
+        dialog.querySelector('#sponsor-rename-card-cancel').addEventListener('click', closeRenameCardDialog);
+        async function submit() {
+            const name = String(input.value || '').trim();
+            if (!name || name.length > 20) { message.textContent = '請輸入 1 至 20 個字的新名稱。'; return; }
+            confirm.disabled = true; input.disabled = true; message.textContent = '伺服器驗證名稱中…';
+            try {
+                const result = await window.onlineCloudRenameCharacter(name);
+                sponsorPassStatus.sponsorDiamonds = Math.max(0, Math.floor(Number(result && result.sponsorDiamonds) || 0));
+                sponsorPassStatus.loaded = true;
+                if (typeof logSys === 'function') logSys('<span class="text-amber-300 font-bold">贊助使者：角色已改名為「' + String(result.name || name).replace(/[<>&"']/g, '') + '」。</span>');
+                closeRenameCardDialog();
+                const content = document.getElementById('interaction-content');
+                if (content && content.dataset.npcId === 'npc_sponsor') window.renderSponsorMerchant(content);
+            } catch (error) {
+                const code = String(error && (error.message || error) || '');
+                message.textContent = /CHARACTER_NAME_TAKEN/.test(code) ? '此名稱已被使用，請換一個。' : /CHARACTER_NAME_UNCHANGED/.test(code) ? '新名稱和目前名稱相同。' : /INVALID_CHARACTER_NAME/.test(code) ? '名稱格式不正確。' : /INSUFFICIENT_SPONSOR_DIAMONDS/.test(code) ? '贊助鑽石不足。' : '改名失敗，請重新登入後再試。';
+                confirm.disabled = false; input.disabled = false;
+            }
+        }
+        confirm.addEventListener('click', submit);
+        input.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); submit(); } });
+        input.focus();
     };
     function renderStatusRates() {
         let panel = document.getElementById('status-panel'); if (!panel || !currentPlayer()) return;

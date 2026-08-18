@@ -202,7 +202,7 @@
         <div id="col-left" class="w-[340px] flex flex-col gap-4">
             <!-- 新增了 id="status-panel"，並加入去底色與加深背景的樣式確保文字可讀 -->
             <div id="status-panel" class="panel bg-cover bg-top bg-no-repeat" style="background-blend-mode: multiply; background-color: rgba(30, 41, 59, 0.85);">
-                <div class="panel-header text-center flex justify-between bg-transparent border-b border-slate-700"><span class="flex items-center shrink-0"><span id="st-classname">職業</span><span id="classic-badge" class="hidden font-bold ml-1" style="color:#fbbf24;text-shadow:0 0 5px rgba(251,191,36,0.7);font-size:0.85rem;line-height:1;" title="經典模式（硬核）：死亡損失該等級 5% 最大經驗（不降等）、無祝福/精通/席琳；掉落率、經驗與金幣獲得與一般模式相同">⚔經典</span></span><span id="victory-badge" class="hidden font-bold" style="color:#fde68a;text-shadow:0 0 6px rgba(253,230,138,0.85);font-size:1.05rem;line-height:1;align-items:center;gap:0.15rem;white-space:nowrap;flex-shrink:0;" title="城主：血盟持有城堡，全商店 8 折、開放城堡"><img id="victory-badge-crown" src="assets/ui/castle-crown.gif?v=v3.6.36" alt="" draggable="false" style="width:16px;height:12px;object-fit:contain;image-rendering:pixelated;position:relative;top:-0.08em;filter:drop-shadow(0 1px 1px rgba(69,26,3,.95)) drop-shadow(0 0 3px rgba(250,204,21,.82));"><span id="victory-badge-text" style="line-height:1;">城主</span></span><span id="st-class" class="text-white text-lg font-bold cursor-pointer hover:bg-slate-700/50 rounded px-2 inline-block min-w-[2.5rem] text-right" title="點擊此處修改名稱" onclick="startEditName()"></span></div>
+                <div class="panel-header text-center flex justify-between bg-transparent border-b border-slate-700"><span class="flex items-center shrink-0"><span id="st-classname">職業</span><span id="classic-badge" class="hidden font-bold ml-1" style="color:#fbbf24;text-shadow:0 0 5px rgba(251,191,36,0.7);font-size:0.85rem;line-height:1;" title="經典模式（硬核）：死亡損失該等級 5% 最大經驗（不降等）、無祝福/精通/席琳；掉落率、經驗與金幣獲得與一般模式相同">⚔經典</span></span><span id="victory-badge" class="hidden font-bold" style="color:#fde68a;text-shadow:0 0 6px rgba(253,230,138,0.85);font-size:1.05rem;line-height:1;align-items:center;gap:0.15rem;white-space:nowrap;flex-shrink:0;" title="城主：血盟持有城堡，全商店 8 折、開放城堡"><img id="victory-badge-crown" src="assets/ui/castle-crown.gif?v=v3.6.36" alt="" draggable="false" style="width:16px;height:12px;object-fit:contain;image-rendering:pixelated;position:relative;top:-0.08em;filter:drop-shadow(0 1px 1px rgba(69,26,3,.95)) drop-shadow(0 0 3px rgba(250,204,21,.82));"><span id="victory-badge-text" style="line-height:1;">城主</span></span><span id="st-class" class="text-white text-lg font-bold rounded px-2 inline-block min-w-[2.5rem] text-right"></span></div>
                 <div class="status-compact-body text-base profile-status-body">
                     <div class="status-level-row text-slate-400">
                         <span>等級</span><span class="text-white font-bold text-xl" id="st-lv">1</span>
@@ -631,7 +631,7 @@
 <script src="js/11-world-map.js?v=v3.9.14-mercenary-guild-entrances-removed"></script>
 <script src="js/12-npc-quests.js?v=v3.8.92-equip-collection-per-character"></script>
 <script src="js/13-shop-save.js?v=v3.9.06-exp-migration-v5"></script>
-<script src="js/14-craft-pandora.js?v=v3.9.10-pandora-single-offer"></script>
+<script src="js/14-craft-pandora.js?v=v3.9.15-rename-card"></script>
 <script src="js/15-cards.js?v=v3.8.29-safe-assets-audit"></script>
 <script src="js/16-equip-book.js?v=v3.8.92-equip-collection-per-character"></script>
 <script src="js/18-misc-book.js?v=v3.8.15-legacy-import-smooth"></script>
@@ -659,11 +659,11 @@ window.refreshEquipmentWindow = function () {};
 <script src="js/32-threat.js?v=v3.8.23-sherine-set-rework"></script>
 <script src="js/33-gm-console.js?v=13-player-grants"></script>
 <script src="js/27-offline-rewards.js?v=v3.8.94-offline-canonical-rollout"></script>
-<script src="js/35-sponsor-merchant.js?v=v3.9.02-sponsor-wallet-sync"></script>
+<script src="js/35-sponsor-merchant.js?v=v3.9.15-rename-card"></script>
 <script src="js/36-offline-hunt.js?v=v3.8.94-offline-canonical-rollout"></script>
 <script src="js/37-profile-progress.js?v=2-direct-game-state"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/38-online-auth.js?v=v3.9.06-mercenary-guild-pass"></script>
+  <script src="js/38-online-auth.js?v=v3.9.15-rename-card"></script>
   <script src="js/40-online-world-chat.js?v=5-verified-broadcast"></script>
   <script src="js/41-player-exchange.js?v=v3.9.03-market-item-details"></script>
 <script>

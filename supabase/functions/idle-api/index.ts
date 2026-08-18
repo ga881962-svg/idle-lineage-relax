@@ -149,9 +149,31 @@ Deno.serve(async (request) => {
     return error ? reply({ error: "CHARACTER_CREATE_FAILED" }, 500) : reply({ character: data }, 201);
   }
 
-  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","sponsor.pass.status","sponsor.pass.purchase","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
+  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","character.rename","sponsor.pass.status","sponsor.pass.purchase","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
   if (protectedActions.has(String(input.action))) { const denied = await requireSession(); if (denied) return denied; }
   if (input.action === "gm.status") { const role = await getRole(); return reply({ allowed: !!role, role: role || "player" }); }
+
+  if (input.action === "character.rename") {
+    const character = await ownCharacter(input.characterId);
+    const nextName = nameOf(input.name);
+    if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
+    if (!nextName || !uuid(input.requestId)) return reply({ error: "INVALID_CHARACTER_NAME" }, 400);
+    const { data, error } = await auth.rpc("character_rename", {
+      p_session_token: String(input.sessionToken), p_character_id: character.id,
+      p_new_name: nextName, p_request_id: String(input.requestId),
+    });
+    if (error) {
+      const detail = `${error.message || ""} ${error.details || ""}`;
+      if (/CHARACTER_NAME_TAKEN/i.test(detail)) return reply({ error: "CHARACTER_NAME_TAKEN" }, 409);
+      if (/CHARACTER_NAME_UNCHANGED/i.test(detail)) return reply({ error: "CHARACTER_NAME_UNCHANGED" }, 409);
+      if (/INVALID_CHARACTER_NAME/i.test(detail)) return reply({ error: "INVALID_CHARACTER_NAME" }, 400);
+      if (/INSUFFICIENT_SPONSOR_DIAMONDS/i.test(detail)) return reply({ error: "INSUFFICIENT_SPONSOR_DIAMONDS" }, 409);
+      if (/REQUEST_ID_PAYLOAD_MISMATCH/i.test(detail)) return reply({ error: "REQUEST_ID_PAYLOAD_MISMATCH" }, 409);
+      if (/SESSION_(REPLACED|REQUIRED|EXPIRED)|INVALID_SESSION/i.test(detail)) return reply({ error: "SESSION_REPLACED" }, 409);
+      return reply({ error: "CHARACTER_RENAME_FAILED" }, 500);
+    }
+    return reply(isRecord(data) ? data : {});
+  }
 
   // Sponsor passes are a server purchase: the browser only asks for a status
   // or submits an idempotent request id. It never supplies a price, balance or

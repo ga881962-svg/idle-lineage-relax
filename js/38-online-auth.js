@@ -702,6 +702,16 @@
     };
     window.onlineCloudSessionToken = function () { return cloudSync.sessionToken || ''; };
     window.onlineCloudCharacterId = function () { return cloudSync.characterId || ''; };
+    window.onlineCloudRenameCharacter = async function (name) {
+        if (!cloudSync.ready || !cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
+        const result = await gameApi({ action:'character.rename', characterId:cloudSync.characterId, name:name, requestId:newUuid() });
+        if (typeof player !== 'undefined' && player && result && result.name) player.name = String(result.name);
+        if (Number.isFinite(Number(result && result.revision))) cloudSync.revision = Number(result.revision);
+        if (result && typeof window.setOnlineSponsorWalletBalance === 'function') window.setOnlineSponsorWalletBalance(result.sponsorDiamonds);
+        if (typeof saveGame === 'function') saveGame();
+        if (typeof updateUI === 'function') updateUI();
+        return result;
+    };
     window.onlineAuthIsSignedIn = function () { return !!activeUser; };
     window.onlineCloudAllySnapshots = async function () {
         if (!cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
