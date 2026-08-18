@@ -2340,6 +2340,53 @@ function enhanceArmAc(en) {
 function traditionalActive(){ return false; }
 function tradNoScrolls(){ return false; }
 
+// ===== 技能書／水晶／書板掉落分級 =====
+// 只調整已經列在怪物掉落表中的技能書項目：不新增任何怪物來源、不影響商店。
+// 低階維持既有機率；中階固定 0.1%；高階固定 0.01%。
+// 分級沿用目前職業技能資料：法師 1–3／4–6／7–10 階；其餘職業依各自三段技能線。
+function skillDropRarity(id) {
+    const item = DB.items && DB.items[id];
+    const skill = item && item.type === 'skillbk' && DB.skills ? DB.skills[item.sk] : null;
+    if (!skill) return null;
+    const sk = item.sk || '';
+    const tier = Number(skill.tier);
+
+    if (sk.startsWith('sk_royal_')) {
+        const lv = Number(skill.reqRoy) || 0;
+        return lv >= 50 ? 'high' : lv >= 30 ? 'mid' : 'low';
+    }
+    if (sk.startsWith('sk_warrior_')) {
+        const lv = Number(skill.reqW) || 0;
+        return lv >= 50 ? 'high' : lv >= 30 ? 'mid' : 'low';
+    }
+    if (sk.startsWith('sk_elf_')) return tier >= 5 ? 'high' : tier >= 3 ? 'mid' : 'low';
+    if (sk.startsWith('sk_dark_')) return tier >= 3 ? 'high' : tier >= 2 ? 'mid' : 'low';
+    if (sk.startsWith('sk_dragon_')) return tier >= 3 ? 'high' : tier >= 2 ? 'mid' : 'low';
+    if (sk.startsWith('sk_illu_')) return tier >= 3 ? 'high' : tier >= 2 ? 'mid' : 'low';
+    // 法師通用魔法與騎士技術：1–3 低、4–6 中、7–10 高。
+    return tier >= 7 ? 'high' : tier >= 4 ? 'mid' : 'low';
+}
+
+function normalizeExistingSkillDropRates() {
+    // 指定頂級技能：保留既有掉落怪物，但再比一般高階低十倍。
+    const ultraRareSkillBooks = new Set([
+        'bk_meteor', 'bk_disintegrate', 'bk_elf_flamesoul', 'bk_invisible',
+        'bk_fire_storm', 'bk_holy_barrier', 'bk_elf_preciseshot', 'bk_elf_muddywater'
+    ]);
+    const tables = [MOB_DROPS, DARK_CRYSTAL_DROPS, DRAGON_DROPS, WARRIOR_DROPS, MEM_DROPS];
+    for (const table of tables) {
+        for (const drops of Object.values(table || {})) {
+            for (const drop of drops || []) {
+                const rarity = skillDropRarity(drop && drop[0]);
+                if (ultraRareSkillBooks.has(drop && drop[0])) drop[1] = 0.001;
+                else if (rarity === 'mid') drop[1] = 0.1;
+                else if (rarity === 'high') drop[1] = 0.01;
+            }
+        }
+    }
+}
+normalizeExistingSkillDropRates();
+
 // ===== 🔧 v3.0.79 物品/裝備說明隱藏骰子公式（使用者要求：XDX 之類公式不顯示；載入時就地改寫 d 文字·不影響實際傷害計算）=====
 {
     const _dSmall = /（小型1D\d+、大型1D\d+）/g;            // 沙哈之箭彈藥骰（整段括號移除）
