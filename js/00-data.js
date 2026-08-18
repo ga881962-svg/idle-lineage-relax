@@ -277,18 +277,20 @@ function _expReqClassicV2(lv) {   // v3.4.58 以前的經典表；僅供 expMigV
     if (lv >= PLAYER_LEVEL_CAP) return Infinity;
     return EXP_REQ_CLASSIC_V2[lv] || Infinity;
 }
-// v4 休閒養成曲線：Lv1–49 大幅降低；Lv50–59、60–69 逐段小幅降低；
+// v5 休閒養成曲線：Lv1–50 在 v4 的基礎上再減半；Lv51–59、60–69 維持既有分段需求；
 // Lv70 起暫時維持上一版需求。玩家、寵物與傭兵共用 getExpReq，避免各自使用不同曲線。
 const EXP_REQ_EARLY_MULTIPLIER = 0.50;
 const EXP_REQ_LV50_59_MULTIPLIER = 0.80;
 const EXP_REQ_LV60_69_MULTIPLIER = 0.90;
+const EXP_REQ_LV1_50_V5_MULTIPLIER = 0.50;
 function getExpReqV3(lv) {
     lv = Math.max(1, Math.floor(Number(lv) || 1));
     if (lv >= PLAYER_LEVEL_CAP) return Infinity;
     if (lv < 50) return EXP_REQ_CLASSIC_V2[lv] || Infinity;
     return Math.max(1, Math.floor(HIGH_LEVEL_EXP_BASE * Math.pow(HIGH_LEVEL_EXP_GROWTH, lv - 50)));
 }
-function getExpReq(lv) {
+// v4 已上線曲線；僅供 expMigV=5 將既有角色保留在同一經驗百分比。
+function getExpReqV4(lv) {
     lv = Math.max(1, Math.floor(Number(lv) || 1));
     const prior = getExpReqV3(lv);
     if (!isFinite(prior)) return prior;
@@ -297,6 +299,12 @@ function getExpReq(lv) {
         : lv < 70 ? EXP_REQ_LV60_69_MULTIPLIER
         : 1;
     return Math.max(1, Math.floor(prior * multiplier));
+}
+function getExpReq(lv) {
+    lv = Math.max(1, Math.floor(Number(lv) || 1));
+    const prior = getExpReqV4(lv);
+    if (!isFinite(prior)) return prior;
+    return Math.max(1, Math.floor(prior * (lv <= 50 ? EXP_REQ_LV1_50_V5_MULTIPLIER : 1)));
 }
 // 舊制需求（v2.6.40 分段放大制·僅供 js/13 expMigV=2 一次性遷移換算，勿用於遊戲邏輯）
 function _expReqOldV1(lv) {
