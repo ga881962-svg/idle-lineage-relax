@@ -712,6 +712,10 @@
         if (typeof updateUI === 'function') updateUI();
         return result;
     };
+    window.onlineCloudLeaderboard = async function () {
+        if (!cloudSync.ready || !cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
+        return await gameApi({ action:'leaderboard.online', characterId:cloudSync.characterId });
+    };
     window.onlineAuthIsSignedIn = function () { return !!activeUser; };
     window.onlineCloudAllySnapshots = async function () {
         if (!cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');

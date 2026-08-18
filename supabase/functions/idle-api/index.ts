@@ -93,6 +93,15 @@ Deno.serve(async (request) => {
   };
   const getCheckpoint = async (characterId: string) =>
     await admin.from("character_checkpoints").select("revision,state,saved_at").eq("character_id", characterId).maybeSingle();
+  const bindActiveCharacter = async (characterId: string) => {
+    const { error } = await admin.from("game_account_sessions")
+      .update({ active_character_id: characterId })
+      .eq("user_id", user.id)
+      .eq("session_token", String(input.sessionToken || ""))
+      .is("invalidated_at", null)
+      .gt("expires_at", nowIso);
+    return !error;
+  };
 
   if (input.action === "session.open") {
     if (!uuid(input.deviceId)) return reply({ error: "INVALID_DEVICE" }, 400);
@@ -104,7 +113,7 @@ Deno.serve(async (request) => {
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     // Upsert replaces the prior token atomically: the new device is immediately
     // the only valid game session for this account.
-    const { error } = await admin.from("game_account_sessions").upsert({ user_id: user.id, session_token: sessionToken, device_id: String(input.deviceId), ip_hash: ipHash, issued_at: nowIso, last_seen_at: nowIso, expires_at: expiresAt, invalidated_at: null }, { onConflict: "user_id" });
+    const { error } = await admin.from("game_account_sessions").upsert({ user_id: user.id, session_token: sessionToken, device_id: String(input.deviceId), ip_hash: ipHash, issued_at: nowIso, last_seen_at: nowIso, expires_at: expiresAt, invalidated_at: null, active_character_id: null }, { onConflict: "user_id" });
     return error ? reply({ error: "SESSION_OPEN_FAILED" }, 500) : reply({ sessionToken, expiresInSeconds: 900 });
   }
   if (input.action === "session.heartbeat") return (await sessionOk()) ? reply({ ok: true }) : reply({ error: "SESSION_REPLACED" }, 409);
@@ -149,7 +158,7 @@ Deno.serve(async (request) => {
     return error ? reply({ error: "CHARACTER_CREATE_FAILED" }, 500) : reply({ character: data }, 201);
   }
 
-  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","character.rename","sponsor.pass.status","sponsor.pass.purchase","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
+  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","character.rename","leaderboard.online","sponsor.pass.status","sponsor.pass.purchase","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
   if (protectedActions.has(String(input.action))) { const denied = await requireSession(); if (denied) return denied; }
   if (input.action === "gm.status") { const role = await getRole(); return reply({ allowed: !!role, role: role || "player" }); }
 
@@ -173,6 +182,14 @@ Deno.serve(async (request) => {
       return reply({ error: "CHARACTER_RENAME_FAILED" }, 500);
     }
     return reply(isRecord(data) ? data : {});
+  }
+
+  if (input.action === "leaderboard.online") {
+    const character = await ownCharacter(input.characterId);
+    if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
+    if (!(await bindActiveCharacter(character.id))) return reply({ error: "LEADERBOARD_SESSION_BIND_FAILED" }, 500);
+    const { data, error } = await auth.rpc("online_leaderboard", { p_session_token: String(input.sessionToken) });
+    return error ? reply({ error: "LEADERBOARD_READ_FAILED" }, 500) : reply(isRecord(data) ? data : {});
   }
 
   // Sponsor passes are a server purchase: the browser only asks for a status
@@ -207,6 +224,7 @@ Deno.serve(async (request) => {
 
   if (input.action === "checkpoint.read") {
     const character = await ownCharacter(input.characterId); if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
+    if (!(await bindActiveCharacter(character.id))) return reply({ error: "SESSION_CHARACTER_BIND_FAILED" }, 500);
     const { data, error } = await getCheckpoint(character.id);
     return error ? reply({ error: "CHECKPOINT_READ_FAILED" }, 500) : reply({ checkpoint: data || null });
   }
@@ -214,6 +232,7 @@ Deno.serve(async (request) => {
     const character = await ownCharacter(input.characterId);
     const givenRevision = int(input.revision, -1);
     if (!character || givenRevision < 0 || !uuid(input.requestId) || !isRecord(input.state)) return reply({ error: "INVALID_CHECKPOINT" }, 400);
+    if (!(await bindActiveCharacter(character.id))) return reply({ error: "SESSION_CHARACTER_BIND_FAILED" }, 500);
     const state = jsonClone(input.state); const p = isRecord(state.p) ? state.p : null;
     if (p && duplicateUids(p.inv)) return reply({ error: "DUPLICATE_ITEM_UID" }, 409);
     const bytes = JSON.stringify(state).length;

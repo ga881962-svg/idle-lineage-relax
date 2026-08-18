@@ -2337,7 +2337,47 @@ function renderSocialNpcSearch(query) {
     box.innerHTML = rows.map(_socialNpcRow).join('') ||
         '<div class="text-slate-500 text-sm border border-slate-800 rounded p-3 text-center">找不到符合的玩家 NPC。</div>';
 }
-function renderPvpTab() {
+let _onlineLeaderboardRefreshTimer = null;
+function _onlineLeaderboardNumber(value) {
+    return Math.max(0, Number(value) || 0).toLocaleString('zh-TW');
+}
+function _scheduleOnlineLeaderboardRefresh() {
+    if (_onlineLeaderboardRefreshTimer) clearTimeout(_onlineLeaderboardRefreshTimer);
+    _onlineLeaderboardRefreshTimer = setTimeout(function () {
+        let box = document.getElementById('tab-pvp');
+        if (box && !box.classList.contains('hidden')) renderPvpTab();
+    }, 15000);
+}
+async function renderPvpTab() {
+    let div = document.getElementById('tab-pvp');
+    if (!div) return;
+    if (typeof window.onlineCloudLeaderboard !== 'function') {
+        div.innerHTML = '<div class="text-slate-500 text-sm bg-slate-900/60 border border-slate-800 rounded p-4 text-center">排行榜僅在登入線上帳號後顯示。</div>';
+        return;
+    }
+    div.innerHTML = '<div class="flex items-center justify-between gap-3 mb-1"><div><div class="font-bold text-amber-200 text-lg">🏆 在線排行榜</div><div class="text-xs text-slate-500 mt-1">只顯示目前仍保持有效遊戲連線的角色；每 15 秒更新。</div></div><button class="btn shrink-0 px-3 py-2 text-sm font-bold bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100" onclick="renderPvpTab()">更新</button></div><div class="text-slate-500 text-sm bg-slate-900/60 border border-slate-800 rounded p-4 text-center">正在讀取伺服器排行榜…</div>';
+    try {
+        let data = await window.onlineCloudLeaderboard();
+        if (div.classList.contains('hidden')) return;
+        let rows = Array.isArray(data && data.players) ? data.players : [];
+        let body = rows.map(function (row) {
+            let rank = Math.max(1, Number(row.rank) || 0);
+            let name = _pvpTabEsc(row.name || '未知角色');
+            return `<div class="bg-slate-900/80 border border-slate-700 rounded p-3 grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-2">
+                <div class="text-center font-black ${rank <= 3 ? 'text-amber-300 text-lg' : 'text-slate-400'}">#${rank}</div>
+                <div class="min-w-0"><div class="font-bold text-slate-100 truncate">${name}</div><div class="text-xs text-cyan-300 mt-1">Lv.${_onlineLeaderboardNumber(row.level)}</div></div>
+                <div class="text-right text-xs leading-5"><div class="text-amber-300">💰 ${_onlineLeaderboardNumber(row.gold)}</div><div class="text-cyan-300">💎 ${_onlineLeaderboardNumber(row.sponsorDiamonds)}</div></div>
+            </div>`;
+        }).join('');
+        div.innerHTML = `<div class="flex items-center justify-between gap-3 mb-1"><div><div class="font-bold text-amber-200 text-lg">🏆 在線排行榜</div><div class="text-xs text-slate-500 mt-1">等級優先，其次金幣、贊助鑽石。僅顯示目前在線角色。</div></div><button class="btn shrink-0 px-3 py-2 text-sm font-bold bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100" onclick="renderPvpTab()">更新</button></div><div class="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] gap-2 px-3 text-xs text-slate-500"><span>排名</span><span>角色／等級</span><span class="text-right">金幣／鑽石</span></div><div class="flex flex-col gap-2">${body || '<div class="text-slate-500 text-sm bg-slate-900/60 border border-slate-800 rounded p-4 text-center">目前沒有在線角色。</div>'}</div>`;
+    } catch (error) {
+        div.innerHTML = '<div class="flex items-center justify-between gap-3"><div class="text-rose-300 text-sm bg-rose-950/40 border border-rose-800 rounded p-4">排行榜暫時無法讀取，請稍後再試。</div><button class="btn shrink-0 px-3 py-2 text-sm font-bold" onclick="renderPvpTab()">重試</button></div>';
+    } finally {
+        _scheduleOnlineLeaderboardRefresh();
+    }
+}
+
+function renderLegacyPvpTab() {
     let div = document.getElementById('tab-pvp');
     if (!div || !player || !player.cls) return;
     if (typeof pvpEnsureState === 'function') pvpEnsureState();
@@ -2566,6 +2606,10 @@ function pvpRevenge(i, choiceIndex) {
     renderPvpTab();
 }
 function switchTab(t, btn) {
+    if (t !== 'pvp' && _onlineLeaderboardRefreshTimer) {
+        clearTimeout(_onlineLeaderboardRefreshTimer);
+        _onlineLeaderboardRefreshTimer = null;
+    }
     Array.from(btn.parentElement.children).forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     // 👇 更新陣列名單
