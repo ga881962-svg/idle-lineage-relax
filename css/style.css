@@ -3732,14 +3732,14 @@ button.classic-skill-cell { cursor:pointer; }
 
 /* 戰場景深：主角應比一般怪物醒目；普通怪縮小，頭目維持原有大型演出。 */
 #battle-view.area-fit .mob-target:not(.boss-slot):not(.boss-zoom) .mob-img-inner {
-  transform:translateY(0) scale(.72) !important;
+  transform:translateY(0) scale(1.008) !important;
   transform-origin:bottom center;
 }
 #battle-view.area-fit .mob-target.mob-back:not(.boss-slot):not(.boss-zoom) .mob-img-inner {
-  transform:translateY(-14px) scale(.66) !important;
+  transform:translateY(-14px) scale(.924) !important;
 }
 #battle-view.area-fit .mob-target.mob-front:not(.boss-slot):not(.boss-zoom) .mob-img-inner {
-  transform:translateY(2px) scale(.78) !important;
+  transform:translateY(2px) scale(1.092) !important;
 }
 
 /* 一般狩獵採左方隊伍、右方敵群的經典站位；龍窟頭目房維持中央。 */
@@ -3896,13 +3896,13 @@ button.classic-skill-cell { cursor:pointer; }
     height:230px !important;
   }
   #battle-view.area-fit .mob-target:not(.boss-slot):not(.boss-zoom) .mob-img-inner {
-    transform:translateY(0) scale(.64) !important;
+    transform:translateY(0) scale(.896) !important;
   }
   #battle-view.area-fit .mob-target.mob-front:not(.boss-slot):not(.boss-zoom) .mob-img-inner {
-    transform:translateY(2px) scale(.70) !important;
+    transform:translateY(2px) scale(.98) !important;
   }
   #battle-view.area-fit .mob-target.mob-back:not(.boss-slot):not(.boss-zoom) .mob-img-inner {
-    transform:translateY(-14px) scale(.58) !important;
+    transform:translateY(-14px) scale(.812) !important;
   }
 }
 
@@ -3926,10 +3926,10 @@ button.classic-skill-cell { cursor:pointer; }
     margin-left:auto !important;
     margin-right:0 !important;
   }
-  #battle-view.area-fit .mob-target:not(.boss-slot):not(.boss-zoom) .mob-img-inner { transform:translateY(0) scale(.52) !important; }
-  #battle-view.area-fit .mob-target.mob-front:not(.boss-slot):not(.boss-zoom) .mob-img-inner { transform:translateY(1px) scale(.58) !important; }
-  #battle-view.area-fit .mob-target.mob-back:not(.boss-slot):not(.boss-zoom) .mob-img-inner { transform:translateY(-8px) scale(.48) !important; }
-  #battle-view.area-fit .mob-target .mob-img-inner.mob-anim img { max-height:110px !important; }
+  #battle-view.area-fit .mob-target:not(.boss-slot):not(.boss-zoom) .mob-img-inner { transform:translateY(0) scale(.728) !important; }
+  #battle-view.area-fit .mob-target.mob-front:not(.boss-slot):not(.boss-zoom) .mob-img-inner { transform:translateY(1px) scale(.812) !important; }
+  #battle-view.area-fit .mob-target.mob-back:not(.boss-slot):not(.boss-zoom) .mob-img-inner { transform:translateY(-8px) scale(.672) !important; }
+  #battle-view.area-fit .mob-target .mob-img-inner.mob-anim img { max-height:154px !important; }
   #battle-view.area-fit .mob-name { font-size:10px !important; }
 
   /* 城鎮 NPC：標題固定、內容可捲動，底部按鈕不再跑出手機畫面。 */
