@@ -1,5 +1,4 @@
-// 城戰選單保留七城；肯特、風木、海音沿用既有兩階段攻城流程。
-// 其餘四城在 V2 階段與數值資料補齊前保持鎖定，避免未完成內容進入正式存檔。
+// 城戰選單只開放已完成的肯特、風木與海音三城。
 (function (global) {
     'use strict';
 
@@ -11,17 +10,11 @@
     const COOLDOWN_MS = 72 * 60 * 60 * 1000;
     const DURATION_MS = 30 * 60 * 1000;
 
-    // 🏰 v3.7.89 六角環繞版面：格線改 6 欄、每顆城堡跨 2 欄 → 上下排各偏移半格，嵌進中間排的縫隙，
-    //   六城環繞中央的亞丁城成一個圓：  上排 [肯特][風木] ／ 中排 [海音][亞丁][奇岩] ／ 下排 [妖魔堡][侏儒城]
-    //   ⚠️ col 是「6 欄格線的起始欄」(1/2/3/4/5)，非舊制的 1~3 欄號；改動請同步 castleChoiceStyle 的 span 2。
+    // 三城共用 6 欄格線、每城跨兩欄，維持等寬排列。
     const CASTLES = [
-        { id:'kent', name:'肯特城', icon:'🏰', enabled:true, legacy:true, row:1, col:2, palette:['#4a1519','#1f0b0d','#c15b5f','#fde7a3','#ef5b61','rgba(239,91,97,.24)'] },
-        { id:'windwood', name:'風木城', icon:'🌲', enabled:true, legacy:true, row:1, col:4, palette:['#143b2d','#091d16','#4f9b76','#c7f9d8','#42d392','rgba(66,211,146,.22)'] },
-        { id:'heine', name:'海音城', icon:'🌊', enabled:true, legacy:true, row:2, col:1, palette:['#123851','#091c29','#4d9ac2','#c9efff','#45bfe8','rgba(69,191,232,.22)'] },
-        { id:'orc_fortress', name:'妖魔堡', icon:'🪓', enabled:false, row:3, col:2, palette:['#3b3215','#1d180a','#8f7e35','#f2e7a5','#a6c957','rgba(166,201,87,.18)'] },
-        { id:'giran', name:'奇岩城', icon:'💰', enabled:false, row:2, col:5, palette:['#4b300d','#241704','#bd8330','#ffefad','#efa83b','rgba(239,168,59,.22)'] },
-        { id:'dwarf_castle', name:'侏儒城', icon:'⚒', enabled:false, row:3, col:4, palette:['#303941','#151a1f','#82909b','#e4edf2','#c98a5d','rgba(201,138,93,.18)'] },
-        { id:'aden', name:'亞丁城', icon:'👑', enabled:false, row:2, col:3, palette:['#3a2457','#190e2a','#c5a64f','#fff0a8','#ad8df2','rgba(197,166,79,.28)'] }
+        { id:'kent', name:'肯特城', icon:'🏰', enabled:true, legacy:true, row:1, col:1, palette:['#4a1519','#1f0b0d','#c15b5f','#fde7a3','#ef5b61','rgba(239,91,97,.24)'] },
+        { id:'windwood', name:'風木城', icon:'🌲', enabled:true, legacy:true, row:1, col:3, palette:['#143b2d','#091d16','#4f9b76','#c7f9d8','#42d392','rgba(66,211,146,.22)'] },
+        { id:'heine', name:'海音城', icon:'🌊', enabled:true, legacy:true, row:1, col:5, palette:['#123851','#091c29','#4d9ac2','#c9efff','#45bfe8','rgba(69,191,232,.22)'] }
     ];
     const LEGACY_CASTLES = new Set(CASTLES.filter(c => c.legacy).map(c => c.id));
 
