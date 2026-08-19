@@ -97,7 +97,9 @@ const MAP_ENTRY_RETURN_RULES = {
     // Dynamic areas require live state that is intentionally not represented
     // by a static map-entry rule.  Return therefore fails closed.
     pvp_arena: { entryType: 'pvp', returnBehavior: 'deny', returnReason: 'PVP_RETURN_DISABLED' },
-    duel_arena: { entryType: 'pvp', returnBehavior: 'deny', returnReason: 'PVP_RETURN_DISABLED' }
+    duel_arena: { entryType: 'pvp', returnBehavior: 'deny', returnReason: 'PVP_RETURN_DISABLED' },
+    // 風木地監是風木城持有者專屬狩獵區；所有返回流程都必須重新驗證。
+    windwood_dungeon: { entryType: 'castle', castleRequirement: 'windwood' }
 };
 
 function mapEntryRuleOf(mapId) {
@@ -115,6 +117,7 @@ function mapEntryRuleOf(mapId) {
         consumableQuantity: entry.needKey ? 1 : 0,
         prideRequirement: entry.prideReq || null,
         prideTier: prideTier,
+        castleRequirement: explicit.castleRequirement || null,
         returnBehavior: explicit.returnBehavior || 'validate',
         returnReason: explicit.returnReason || null
     };
