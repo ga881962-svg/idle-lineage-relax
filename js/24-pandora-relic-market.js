@@ -17,6 +17,9 @@
     const WANDERER_CHANCE = 0.50;
     const GOLD_WANDERER_CHANCE = 0.30;
     const WANDERER_CARD_CHANCE = 0.10;
+    // 線上正式版不顯示以隨機玩家名稱生成的流浪收購 NPC。
+    // 真正的潘朵拉黑市與遺物系統不受此開關影響。
+    const WANDERING_BUYERS_ENABLED = false;
 
     // 🚫 v3.5.53 出沒排除（用戶拍板）：攻城三城（限持城者進入·NPC 形同碰不到）＋炎魔謁見所＋席琳神殿；
     //    其餘安全區皆可出沒（含 傲慢之塔入口/時空裂痕入口/沉默洞穴/長老會議廳/希培利亞村莊/貝希摩斯）。
@@ -927,6 +930,26 @@
     }
 
     function wanderingBuyerSystemTick() {
+        if (!WANDERING_BUYERS_ENABLED) {
+            // 已存在於舊本機狀態的流浪者也不得再渲染、叫賣或出現在村莊。
+            // 同時精準清除這個已停用功能自身的暫存資料；不影響黑市、遺物或玩家資產。
+            _withStateLock(st => {
+                if (!Array.isArray(st.wanderers) || !st.wanderers.length) return { commit: false };
+                st.wanderers = [];
+                return {};
+            });
+            if (_lastMapSignature !== '__wandering-buyers-disabled__') {
+                _lastMapSignature = '__wandering-buyers-disabled__';
+                try {
+                    if (typeof mapState !== 'undefined' && mapState && String(mapState.current || '').startsWith('town_') &&
+                        typeof renderTownNPCMap === 'function') {
+                        renderTownNPCMap(mapState.current);
+                    }
+                } catch (e) {}
+            }
+            renderWanderBroadcastPins({ wanderers: [] });
+            return;
+        }
         if (typeof DB === 'undefined' || !DB.items || !DB.towns) return;
         let now = Date.now();
         let bucket = Math.floor(now / CHECK_MS);
@@ -969,6 +992,7 @@
     }
 
     function getWanderingBuyersForTown(townId) {
+        if (!WANDERING_BUYERS_ENABLED) return [];
         let st = _readState();
         let list = _findWanderersForTown(st, townId);
         return list.map((w, index) => Object.assign({
@@ -1978,6 +2002,10 @@
     try {
         window.addEventListener('storage', e => {
             if (e && e.key === STORE_KEY) {
+                if (!WANDERING_BUYERS_ENABLED) {
+                    wanderingBuyerSystemTick();
+                    return;
+                }
                 let st = _readState();
                 _refreshTownMapIfNeeded(_activeSignature(st.wanderers));
                 renderWanderBroadcastPins(st);   // 📌 v3.5.77 多開同步：另一個分頁互動/成交後，本頁釘選列一起遞補

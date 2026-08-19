@@ -4,6 +4,9 @@
 //   ・NPC 名字可點 → 嘲諷（依性向判定記仇並可能野外追殺）／感謝（好感回覆）／私訊（1 對 1 對話）。
 //   ⚠️ 線上名冊仍是即時資料；最近私訊的 20 位 NPC 與對話摘要會寫進角色存檔，供「社交＞私訊」再次聯絡。
 
+// 正式線上版只保留真實玩家與系統訊息；不產生虛構玩家文字、回覆或自動閒聊。
+const WORLD_CHANNEL_VIRTUAL_PLAYERS_ENABLED = false;
+
 function _wcPick(list) { return (list && list.length) ? list[Math.floor(Math.random() * list.length)] : ''; }
 function _wcEsc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -1850,6 +1853,7 @@ function setNpcLanguageEnabled(enabled) {
 }
 
 function _wcCanIdleChat() {
+    if (!WORLD_CHANNEL_VIRTUAL_PLAYERS_ENABLED) return false;
     if (typeof document === 'undefined') return false;
     let game = document.getElementById('game-screen');
     if (!game || game.classList.contains('hidden')) return false;
@@ -2154,6 +2158,7 @@ function worldChannelAsk() {
     let myName = (typeof player !== 'undefined' && player && player.name) ? player.name : '你';
     let myAlignment = (typeof player !== 'undefined' && player) ? player.alignmentValue : 0;
     logWorld(`<span class="wc-ask">${_wcStaticNameHtml(myName, myAlignment)}：${_wcEsc(q)}</span>`);
+    if (!WORLD_CHANNEL_VIRTUAL_PLAYERS_ENABLED) return;
     if (_wcIsMassTaunt(q)) {
         _wcTriggerMassTaunt();
         return;
@@ -2944,7 +2949,7 @@ function _wcAddGrudge(npc, opts) {
             });
         }
         if (typeof initWorldLogLock === 'function') initWorldLogLock();
-        if (!_wcIdleTimer) _wcIdleTimer = setInterval(_wcPostIdleChat, 60 * 1000);
+        if (WORLD_CHANNEL_VIRTUAL_PLAYERS_ENABLED && !_wcIdleTimer) _wcIdleTimer = setInterval(_wcPostIdleChat, 60 * 1000);
         if (typeof syncNpcLanguageSetting === 'function') syncNpcLanguageSetting();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
