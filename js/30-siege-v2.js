@@ -129,13 +129,11 @@
         let rule = c.legacy
             ? legacyEligibility(c.id, held)
             : (c.enabled ? eligibility(c.id) : { ok:false, reason:'階段與數值資料未完成' });
-        let defender = c.enabled && typeof npcClanCastleDefender === 'function' ? npcClanCastleDefender(c.id, player) : null;
-        let defenderText = defender ? `<span class="siege-castle-defender">守城血盟：${esc(defender.name)}</span>` : '';
         let stateClass = rule.ok ? 'is-open' : 'is-locked';
         let capitalClass = c.id === 'aden' ? ' siege-castle-capital' : '';
         return `<button type="button" data-castle="${c.id}" class="btn siege-castle-choice ${stateClass}${capitalClass}" style="${castleChoiceStyle(c)}" ${rule.ok ? `onclick="startSiege('', '${c.id}')"` : 'disabled'}>
             <span class="siege-castle-title"><span class="siege-castle-icon" aria-hidden="true">${c.icon}</span>${esc(c.name)}</span>
-            <span class="siege-castle-status">${held === c.id ? '目前持有' : esc(rule.reason)}</span>${defenderText}
+            <span class="siege-castle-status">${held === c.id ? '目前持有' : esc(rule.reason)}</span>
         </button>`;
     }
 
@@ -672,9 +670,8 @@
             .siege-castle-choice.siege-castle-capital{box-shadow:inset 0 0 0 1px rgba(255,240,168,.14),inset 0 1px 0 rgba(255,255,255,.12),0 3px 12px var(--siege-glow)}
             .siege-castle-title{display:flex;min-width:0;align-items:center;justify-content:center;gap:.32rem;font-size:1rem;font-weight:800;line-height:1.2;color:var(--siege-text)}
             .siege-castle-icon{font-size:1.08rem;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.72))}
-            .siege-castle-status,.siege-castle-defender{display:block;max-width:100%;margin-top:.35rem;font-size:.7rem;line-height:1.25;color:rgba(226,232,240,.88);overflow-wrap:anywhere}
-            .siege-castle-defender{margin-top:.2rem;color:rgba(203,213,225,.82)}
-            @media(max-width:480px){.siege-castle-grid{gap:.4rem}.siege-castle-choice{min-height:104px;padding:.55rem .3rem}.siege-castle-title{gap:.2rem;font-size:.86rem}.siege-castle-icon{font-size:.95rem}.siege-castle-status,.siege-castle-defender{font-size:.63rem}}
+            .siege-castle-status{display:block;max-width:100%;margin-top:.35rem;font-size:.7rem;line-height:1.25;color:rgba(226,232,240,.88);overflow-wrap:anywhere}
+            @media(max-width:480px){.siege-castle-grid{gap:.4rem}.siege-castle-choice{min-height:104px;padding:.55rem .3rem}.siege-castle-title{gap:.2rem;font-size:.86rem}.siege-castle-icon{font-size:.95rem}.siege-castle-status{font-size:.63rem}}
             .siege-v2-anim{position:relative;display:inline-block}.siege-v2-shadow,.siege-v2-right{position:absolute;inset:0;width:100%;height:100%;padding:.25rem;object-fit:contain;pointer-events:none}.siege-v2-shadow{z-index:0;mix-blend-mode:multiply}.siege-v2-anim>img:not(.siege-v2-shadow):not(.siege-v2-right){position:relative;z-index:1}.siege-v2-right{z-index:2;transform:translateX(34%)}.siege-v2-gate>img:not(.siege-v2-shadow):not(.siege-v2-right){transform:translateX(-34%)}`;
         document.head.appendChild(style);
     }

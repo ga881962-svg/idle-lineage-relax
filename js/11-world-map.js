@@ -700,11 +700,9 @@ function openSiegeSelect(faction, targetEl) {
     faction = String(faction || 'solo');
     let held = rememberCastleOwnerCity(castleOwnerCity(true));
     let choice = (city, label, style) => {
-        let defender = typeof npcClanCastleDefender === 'function' ? npcClanCastleDefender(city, player) : null;
-        let defenderText = defender ? `<span class="block text-xs font-normal mt-1">守城血盟：${typeof clanEsc === 'function' ? clanEsc(defender.name) : defender.name}</span>` : '';
         return held === city
             ? `<button class="btn flex-1 py-4 text-lg font-bold bg-slate-700 border-slate-500 text-slate-400 opacity-60 cursor-not-allowed" disabled>${label}<span class="block text-xs font-normal mt-1">目前持有</span></button>`
-            : `<button class="btn flex-1 py-4 text-lg font-bold ${style}" onclick="startSiege('${faction}','${city}')">${label}${defenderText}</button>`;
+            : `<button class="btn flex-1 py-4 text-lg font-bold ${style}" onclick="startSiege('${faction}','${city}')">${label}</button>`;
     };
     let el = targetEl || document.getElementById('interaction-content'); if (!el) return;
     el.innerHTML = `
