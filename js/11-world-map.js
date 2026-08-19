@@ -232,9 +232,8 @@ const SIEGE_CITY = {
     heine:    { key:'heine',    name:'海音城', outer:'heine_outer', outerName:'海音外門區', inner:'heine_inner', innerName:'海音內城', castle:'town_heine_castle', castleName:'海音城', gate:'海音城門', tower:'海音守護塔' }
 };
 // 城堡所有權只會在角色／模式切換與攻城事件時改變。讀檔後首次使用查一次，
-// 宣戰與勝敗結算再由事件刷新；補跑及一般戰鬥不再定時解壓、解析血盟共用資料。
+// 宣戰與勝敗結算再由事件刷新；每位角色只保留自己的城堡歸屬。
 let _castleOwnerCache = { playerRef:null, mode:null, ready:false, city:null };
-let _castleOwnerChannel = null;
 function _castleOwnerContext() {
     let p = (typeof player !== 'undefined') ? player : null;
     return { playerRef:p, mode:p && p.classicMode ? 'classic' : 'normal' };
@@ -255,15 +254,13 @@ function _castleOwnerApply(city) {
 function castleOwnerCity(force) {
     let ctx = _castleOwnerContext();
     if (!force && _castleOwnerCacheReady()) return _castleOwnerCache.city;
-    // 攻城現在以目前角色為單位，不再要求先建立王族血盟。舊血盟城堡資料僅作為
-    // 尚未取得個人城堡之角色的相容讀取來源；新的勝利一律寫入角色存檔。
+    // 攻城以目前角色為單位；城堡歸屬只讀此角色自己的存檔，不再讀血盟共用資料。
     let personalCity = ctx.playerRef && SIEGE_CITY[ctx.playerRef.siegeCastle] ? ctx.playerRef.siegeCastle : null;
-    let clanCity = (ctx.playerRef && typeof clanGetCastleCity === 'function') ? clanGetCastleCity(ctx.playerRef) : null;
-    let city = personalCity || clanCity;
+    let city = personalCity;
     _castleOwnerCache = { playerRef:ctx.playerRef, mode:ctx.mode, ready:true, city:_castleOwnerApply(city) };
     return _castleOwnerCache.city;
 }
-function rememberCastleOwnerCity(city, broadcast) {
+function rememberCastleOwnerCity(city) {
     let ctx = _castleOwnerContext();
     _castleOwnerCache = {
         playerRef:ctx.playerRef,
@@ -271,30 +268,17 @@ function rememberCastleOwnerCity(city, broadcast) {
         ready:true,
         city:_castleOwnerApply(city)
     };
-    if (broadcast !== false && _castleOwnerChannel) {
-        try { _castleOwnerChannel.postMessage({ type:'castle-owner', mode:ctx.mode, city:_castleOwnerCache.city }); } catch (e) {}
-    }
     return _castleOwnerCache.city;
 }
-try {
-    if (typeof BroadcastChannel === 'function') {
-        _castleOwnerChannel = new BroadcastChannel('fb5-castle-owner-v1');
-        _castleOwnerChannel.onmessage = function(ev) {
-            let data = ev && ev.data, ctx = _castleOwnerContext();
-            if (!data || data.type !== 'castle-owner' || data.mode !== ctx.mode) return;
-            rememberCastleOwnerCity(data.city, false);
-        };
-    }
-} catch (e) { _castleOwnerChannel = null; }
 function siegeCityCfg() { return SIEGE_CITY[(player.siege && player.siege.city) || 'kent']; }   // 進行中攻城的城池
 function victoryCityCfg() {
     let city = castleOwnerCity();
     return SIEGE_CITY[city] || SIEGE_CITY.kent;
-}   // 血盟同模式共用的永久城堡
+}   // 目前角色持有的永久城堡
 const SIEGE_OUTER_INNER = ['kent_outer', 'kent_inner', 'ww_outer', 'ww_inner', 'heine_outer', 'heine_inner'];
 const SIEGE_CASTLES = ['town_kent_castle', 'town_windwood_castle', 'town_heine_castle'];
 
-// 🏰 城堡護衛 v2（可招募協同角色·死亡30秒復活·血盟共用名冊）已移至 js/31-castle-guards.js（舊「承擔10%傷害」制 v3.7.96 移除）。
+// 🏰 城堡護衛 v2（可招募協同角色·死亡30秒復活·角色個人名冊）已移至 js/31-castle-guards.js（舊「承擔10%傷害」制 v3.7.96 移除）。
 const CASTLE_EXTRA = ['windwood_dungeon'];   // 🔧 風木地監歸入「城堡」分類（隨風木城一起，攻城獲勝後開放）
 // 🔧 城堡分類清單：依獲勝城池組成。肯特城＝僅肯特城；風木城＝風木城（安全）＋風木地監（狩獵）
 function getCastleAreas() {

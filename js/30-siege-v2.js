@@ -92,12 +92,9 @@
         return `${h} 小時 ${m} 分鐘`;
     }
     function eligibility(city) {
-        let clan = typeof clanGetModeInfo === 'function' ? clanGetModeInfo(player) : null;
-        let held = clan ? clan.castle : null;
+        let held = typeof castleOwnerCity === 'function' ? castleOwnerCity(true) : null;
         let s = player.siege || {};
         let remain = Math.max(0, num(s.cooldownUntil, 0) - Date.now());
-        if (!clan) return { ok:false, reason:'尚未加入血盟' };
-        if (typeof clanCanSiege === 'function' && !clanCanSiege(player)) return { ok:false, reason:'此模式沒有可宣戰的王族盟主' };
         if (s.active) return { ok:false, reason:'攻城戰進行中' };
         if ((player.lv || 1) < MIN_LEVEL) return { ok:false, reason:`需要 Lv.${MIN_LEVEL}` };
         if ((player.gold || 0) < ENTRY_GOLD) return { ok:false, reason:'需要 1,000,000 金幣' };
@@ -443,19 +440,19 @@
         }
         let won = result === 'win';
         if (won) {
-            let setResult = typeof clanSetCastle === 'function' ? clanSetCastle('kent') : { ok:false };
-            if (setResult && setResult.ok) {
+            player.siegeCastle = 'kent';
+            if (player.siegeCastle === 'kent') {
                 if (typeof rememberCastleOwnerCity === 'function') rememberCastleOwnerCity('kent');
                 if (typeof npcClanOnSiegeResult === 'function') npcClanOnSiegeResult('kent', 'win', defenderId);
-                log('<span class="text-yellow-300 font-bold">肯特城戰獲勝。</span>血盟已佔領肯特城。');
+                log('<span class="text-yellow-300 font-bold">肯特城戰獲勝。</span>目前角色已佔領肯特城。');
             } else {
                 won = false;
                 s.result = 'claim_failed';
-                if (typeof rememberCastleOwnerCity === 'function') rememberCastleOwnerCity(typeof clanGetCastleCity === 'function' ? clanGetCastleCity(player) : null);
-                log('<span class="text-red-400 font-bold">城戰獲勝，但血盟城堡資料寫入失敗。</span>');
+                if (typeof rememberCastleOwnerCity === 'function') rememberCastleOwnerCity(null);
+                log('<span class="text-red-400 font-bold">城戰獲勝，但角色城堡資料寫入失敗。</span>');
             }
         } else {
-            if (typeof rememberCastleOwnerCity === 'function') rememberCastleOwnerCity(typeof clanGetCastleCity === 'function' ? clanGetCastleCity(player) : null);
+            if (typeof rememberCastleOwnerCity === 'function') rememberCastleOwnerCity(typeof castleOwnerCity === 'function' ? castleOwnerCity(true) : null);
             if (typeof npcClanOnSiegeResult === 'function') npcClanOnSiegeResult('kent', 'lose', defenderId);
             log(`<span class="text-slate-300 font-bold">肯特城戰失敗。</span>${esc(reason || '未能在時限內完成攻城。')}`);
         }

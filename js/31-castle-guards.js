@@ -1,10 +1,10 @@
 // ============================================================
 // js/31-castle-guards.js — 🏰 城堡護衛 v2（可招募的協同作戰角色）
 //   舊制「承擔 10% 傷害的城堡護衛」已移除；改為與召喚物同性質的可上場實體：
-//   ・招募後，同模式（一般/經典）所有主操作角色都會獲得護衛跟隨（血盟共用名冊）。
+//   ・招募後，只由目前取得城堡的角色獲得護衛跟隨（角色個人名冊）。
 //   ・可與召喚物、寵物、傭兵並存（不互斥）。
 //   ・護衛死亡 30 秒後自動復活（不消耗復活卷軸）。
-//   ・可攜帶數量＝血盟創盟王族盟主魅力 / 15，最多 4 個；每招募一隻 100 萬金幣。
+//   ・每位城主固定可招募 1 名；每招募一隻 100 萬金幣。
 //   ・持續到「宣戰其他城堡」或「失去城堡」（見 castleGuardRosterActive 的動態驗證＋宣戰清空）。
 //
 //   三城堡各自綁定一支部隊（打下哪座城，只能在該城招募對應護衛）：
@@ -12,7 +12,7 @@
 //
 //   數值以「杜賓狗（裸身·剔除夥伴精通）在玩家等級的每擊平均」為單一真相反推 DPS（見 _guardDobBaseDps）：
 //     用戶指定傷害＝DPS 比例，不是每擊傷害。等級＝跟隨的當前操作角色等級。
-//   ⚠️ 執行期實體 player.guardsV2 不入檔（比照 summonsV2）；名冊在血盟共用狀態持久（js/25）。
+//   ⚠️ 執行期實體 player.guardsV2 不入檔（比照 summonsV2）；名冊隨目前角色存檔持久。
 // ============================================================
 'use strict';
 
@@ -39,7 +39,7 @@ const CASTLE_GUARD_BOOK = {
         aggroWeight: 4, threat: 3,
         d: '海音神官隊長麾下的毒蛇之牙部隊：攻守均衡的護衛（魔法防禦與迴避兼具）。' },
 };
-const CASTLE_GUARD_MAX = 4;                 // 攜帶數量硬上限
+const CASTLE_GUARD_MAX = 1;                 // 每位城主固定 1 名
 const CASTLE_GUARD_COST = 1000000;          // 每招募一隻的金幣
 const CASTLE_GUARD_REVIVE_MS = 30000;       // 死亡後 30 秒自動復活（不耗卷軸）
 const CASTLE_GUARD_HIRE_TICKS = Math.round(CASTLE_GUARD_REVIVE_MS / 100);   // 引擎 tick=100ms → 300 ticks
@@ -47,31 +47,23 @@ const CASTLE_GUARD_HIRE_TICKS = Math.round(CASTLE_GUARD_REVIVE_MS / 100);   // �
 function _guardSpecForCity(city) { return CASTLE_GUARD_BOOK[city] || null; }
 function _guardSpecForForm(form) { for (const k in CASTLE_GUARD_BOOK) if (CASTLE_GUARD_BOOK[k].form === form) return CASTLE_GUARD_BOOK[k]; return null; }
 
-// 血盟創盟王族盟主的魅力（跨存檔位讀·非當前角色）→ 可攜帶數量上限。
-function castleGuardLeaderCha() {
-    let role = (typeof clanLeaderRole === 'function') ? clanLeaderRole(player) : null;
-    let lp = role && role.player;
-    if (!lp) return 0;
-    // 盟主的 d 可能未重算（讀自存檔）；優先取 d.cha，退而取六維 cha。
-    let cha = (lp.d && Number(lp.d.cha)) || Number(lp.cha) || 0;
-    return Math.max(0, Math.floor(cha));
-}
-function castleGuardCapacity() {   // floor(盟主魅力/15)·封頂 4
-    return Math.max(0, Math.min(CASTLE_GUARD_MAX, Math.floor(castleGuardLeaderCha() / 15)));
+function castleGuardCapacity() { return CASTLE_GUARD_MAX; }
+function castleGuardOwnedCity() {
+    return (typeof castleOwnerCity === 'function') ? castleOwnerCity(true) : null;
 }
 
-// 名冊（血盟模式共用）：{ city, count, hiredAt }｜null。
-//   動態驗證：血盟目前必須「持有 guards.city 這座城」，否則名冊失效（失去城堡／已佔領別城）。
+// 名冊（目前角色）：{ city, count, hiredAt }｜null。
+// 動態驗證：目前角色仍持有該城；換城或失城時舊名冊不再生效。
 function castleGuardRosterActive() {
     if (typeof player === 'undefined' || !player || !player.cls) return null;
-    let info = (typeof clanGetModeInfo === 'function') ? clanGetModeInfo(player) : null;
-    if (!info || !info.guards) return null;
-    let owned = (typeof clanGetCastleCity === 'function') ? clanGetCastleCity(player) : null;
-    if (!owned || owned !== info.guards.city) return null;   // 沒城 / 換城 → 失效
-    if (!_guardSpecForCity(info.guards.city)) return null;
-    return info.guards;
+    let roster = player.castleGuards;
+    if (!roster || typeof roster !== 'object') return null;
+    let owned = castleGuardOwnedCity();
+    if (!owned || owned !== roster.city) return null;
+    if (!_guardSpecForCity(roster.city)) return null;
+    return roster;
 }
-// 實際跟隨數＝min(名冊已招募數, 目前魅力容量)。
+// 實際跟隨數＝名冊已招募數，固定最多 1。
 function castleGuardFollowCount() {
     let r = castleGuardRosterActive();
     if (!r) return 0;
@@ -79,51 +71,29 @@ function castleGuardFollowCount() {
 }
 
 // ---------- 招募 / 遣散 / 失效 ----------
-function _guardWriteRoster(mutator) {
-    if (typeof _clanWithLock !== 'function') return { ok: false, error: '血盟系統未就緒。' };
-    let mode = (typeof clanModeKey === 'function') ? clanModeKey(player) : 'normal';
-    return _clanWithLock(st => {
-        let info = st.modes[mode];
-        if (!info) return { commit: false, error: '你尚未加入血盟。' };
-        return mutator(info) || {};
-    });
-}
 function hireCastleGuard(city) {
     let spec = _guardSpecForCity(city);
     if (!spec) return;
     if (typeof siegeVictoryActive !== 'function' || !siegeVictoryActive()) { logSys('<span class="text-red-400">攻城獲勝（擁有城堡）期間才能招募城堡護衛。</span>'); return; }
-    let owned = (typeof clanGetCastleCity === 'function') ? clanGetCastleCity(player) : null;
-    if (owned !== city) { logSys(`<span class="text-red-400">你的血盟目前並未持有${spec.label}城，無法招募${spec.form}。</span>`); return; }
+    let owned = castleGuardOwnedCity();
+    if (owned !== city) { logSys(`<span class="text-red-400">目前角色尚未持有${spec.label}城，無法招募${spec.form}。</span>`); return; }
     let cap = castleGuardCapacity();
-    if (cap <= 0) { logSys('<span class="text-red-400">盟主魅力不足（需魅力 15 以上才能攜帶 1 名護衛）。</span>'); return; }
     let cur = castleGuardRosterActive();
     let curCount = (cur && cur.city === city) ? (cur.count || 0) : 0;
-    if (curCount >= cap) { logSys(`<span class="text-amber-300">已達可攜帶上限（${cap} 名·盟主魅力 ${castleGuardLeaderCha()}）。</span>`); return; }
+    if (curCount >= cap) { logSys(`<span class="text-amber-300">已達城堡護衛上限（${cap} 名）。</span>`); return; }
     if ((player.gold || 0) < CASTLE_GUARD_COST) { logSys(`<span class="text-red-400">金幣不足，招募 ${spec.form} 需要 ${CASTLE_GUARD_COST.toLocaleString()} 金幣。</span>`); return; }
 
-    let res = _guardWriteRoster(info => {
-        // 城堡不符或未持有 → 名冊視為空（換城時舊部隊本就失效）
-        let g = info.guards && info.guards.city === city ? info.guards : null;
-        let count = g ? (g.count || 0) : 0;
-        if (count >= cap) return { commit: false, error: 'full' };
-        info.guards = { city: city, count: count + 1, hiredAt: (g && g.hiredAt) || Date.now() };
-        return { count: info.guards.count };
-    });
-    if (!res.ok) { if (res.error && res.error !== 'full') logSys(`<span class="text-red-400">${res.error}</span>`); return; }
+    player.castleGuards = { city: city, count: Math.min(cap, curCount + 1), hiredAt: (cur && cur.hiredAt) || Date.now() };
     player.gold -= CASTLE_GUARD_COST;
-    logSys(`<span class="text-emerald-300 font-bold">招募了 ${spec.form}（第 ${res.count} 名·${spec.label}城）。</span>同盟同模式的角色都將獲得其跟隨。`);
+    logSys(`<span class="text-emerald-300 font-bold">招募了 ${spec.form}（${spec.label}城）。</span>僅目前角色可攜帶此護衛。`);
     try { saveGame(); } catch (e) {}
     castleGuardSync(true);
     updateUI();
     let el = document.getElementById('interaction-content'); if (el) renderCastleGuard(el, city);
 }
 function disbandCastleGuards(city) {
-    let res = _guardWriteRoster(info => {
-        if (!info.guards || (city && info.guards.city !== city)) return { commit: false };
-        info.guards = null;
-        return {};
-    });
-    if (res.ok) {
+    if (player && player.castleGuards && (!city || player.castleGuards.city === city)) {
+        delete player.castleGuards;
         logSys('<span class="text-slate-300">已遣散城堡護衛。</span>');
         try { saveGame(); } catch (e) {}
     }
@@ -134,10 +104,10 @@ function disbandCastleGuards(city) {
 }
 // 「宣戰其他城堡」時清空名冊（startSiege 成功後呼叫；宣戰自己的城會被上游 held===city 擋掉）。
 function castleGuardsOnSiegeDeclared() {
-    let info = (typeof clanGetModeInfo === 'function') ? clanGetModeInfo(player) : null;
-    if (!info || !info.guards) return;
-    _guardWriteRoster(i => { i.guards = null; return {}; });
+    if (!player || !player.castleGuards) return;
+    delete player.castleGuards;
     if (player) player.guardsV2 = [];
+    try { saveGame(); } catch (e) {}
 }
 
 // ---------- 數值反推（單一真相＝裸杜賓狗每擊平均·剔除夥伴精通） ----------
@@ -218,7 +188,7 @@ function castleGuardSync(force) {
 }
 
 // ---------- tick（js/03 召喚階段呼叫） ----------
-let _guardSyncCd = 0;   // 🩹 v3.8.0 名冊驗證節流計數：castleGuardSync 會讀血盟共用狀態（localStorage＋LZ＋簽章＋JSON.parse），每 tick 讀取在補跑時嚴重拖慢
+let _guardSyncCd = 0;   // 名冊驗證節流：避免每個戰鬥 tick 都重建護衛實體。
 function castleGuardTick() {
     if (typeof player === 'undefined' || !player || !player.cls) return;
     if (player.dead) { if ((player.guardsV2 || []).length) { player.guardsV2 = []; renderGuardPanel(true); } return; }
@@ -371,7 +341,7 @@ setInterval(() => { try { renderGuardPanel(); } catch (e) {} }, 500);
 function renderCastleGuard(div, city) {
     if (typeof _activePanel !== 'undefined') _activePanel = null;
     let spec = _guardSpecForCity(city); if (!spec || !div) return;
-    let owned = (typeof clanGetCastleCity === 'function') ? clanGetCastleCity(player) : null;
+    let owned = castleGuardOwnedCity();
     let held = (typeof siegeVictoryActive === 'function') && siegeVictoryActive() && owned === city;
     let cap = castleGuardCapacity();
     let r = castleGuardRosterActive();
@@ -382,9 +352,9 @@ function renderCastleGuard(div, city) {
 
     let intro = `招募 <b class="text-cyan-300">${spec.form}</b> 作為協同作戰的護衛：與召喚物、寵物、傭兵並存，`
         + `<b class="text-emerald-300">死亡 30 秒後自動復活（不消耗復活卷軸）</b>。`
-        + `招募後，同盟同模式的所有角色都會獲得其跟隨。<br>`
-        + `<span class="text-slate-400">可攜帶數量＝盟主魅力 / 15，最多 ${CASTLE_GUARD_MAX} 名；每招募一隻 ${(CASTLE_GUARD_COST / 10000)} 萬金幣，`
-        + `持續到你的血盟宣戰其他城堡或失去本城為止。</span>`;
+        + `招募後，<b class="text-emerald-300">僅目前角色</b>會獲得其跟隨。<br>`
+        + `<span class="text-slate-400">每位城主最多 ${CASTLE_GUARD_MAX} 名；每招募一隻 ${(CASTLE_GUARD_COST / 10000)} 萬金幣，`
+        + `持續到你宣戰其他城堡或失去本城為止。</span>`;
 
     let statLine = `<div class="text-slate-300 text-xs mt-1">Lv.${sample.lv}（你的等級）　HP ${mhp}　攻 1D${d.dice}+${d.flat}／${spec.aspdSec}s　AC ${d.ac}　MR ${d.mr}　受擊權重 ${spec.aggroWeight}</div>`;
 
@@ -394,16 +364,16 @@ function renderCastleGuard(div, city) {
     } else {
         let curHtml = curCount > 0
             ? `<div class="bg-slate-800/70 border border-cyan-700 rounded p-2 text-sm mb-2 flex items-center justify-between gap-2">
-                 <span class="text-cyan-300 font-bold">目前 ${spec.form} ×${Math.min(curCount, cap)}${curCount > cap ? `（名冊 ${curCount}·魅力上限 ${cap}）` : ''}</span>
+                 <span class="text-cyan-300 font-bold">目前 ${spec.form} ×${Math.min(curCount, cap)}</span>
                  <button onclick="disbandCastleGuards('${city}')" class="btn px-3 py-1 text-xs bg-red-900 hover:bg-red-800 border-red-600 text-red-200 font-bold">遣散全部</button>
                </div>`
             : '';
         let full = curCount >= cap;
         let noGold = (player.gold || 0) < CASTLE_GUARD_COST;
-        let dis = cap <= 0 || full || noGold;
-        let btnLabel = cap <= 0 ? '盟主魅力不足' : (full ? `已達上限（${cap}）` : (noGold ? '金幣不足' : `招募 1 名（${(CASTLE_GUARD_COST / 10000)} 萬金幣）`));
+        let dis = full || noGold;
+        let btnLabel = full ? `已達上限（${cap}）` : (noGold ? '金幣不足' : `招募 1 名（${(CASTLE_GUARD_COST / 10000)} 萬金幣）`);
         statusHtml = curHtml + `<button ${dis ? 'disabled' : ''} onclick="hireCastleGuard('${city}')" class="btn w-full py-2 text-sm font-bold ${dis ? 'bg-slate-700 border-slate-600 text-slate-500 cursor-not-allowed' : 'bg-emerald-800 hover:bg-emerald-700 border-emerald-600 text-emerald-100'}">${btnLabel}</button>
-            <div class="text-slate-500 text-xs mt-1">盟主魅力 ${castleGuardLeaderCha()} → 可攜帶 ${cap} 名</div>`;
+            <div class="text-slate-500 text-xs mt-1">目前角色最多可攜帶 ${cap} 名</div>`;
     }
     div.innerHTML = `<div class="flex flex-col gap-1 p-1">
         <div class="text-slate-300 text-sm leading-relaxed">${intro}</div>
