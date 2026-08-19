@@ -108,12 +108,9 @@
     }
 
     function legacyEligibility(city, held) {
-        let clan = typeof clanGetModeInfo === 'function' ? clanGetModeInfo(player) : null;
         let s = player.siege || {};
-        if (!clan) return { ok:false, reason:'尚未加入血盟' };
-        if (typeof clanCanSiege === 'function' && !clanCanSiege(player)) return { ok:false, reason:'此模式沒有可宣戰的王族盟主' };
         if (s.active) return { ok:false, reason:'攻城戰進行中' };
-        if ((held || clan.castle) === city) return { ok:false, reason:'目前持有' };
+        if (held === city) return { ok:false, reason:'目前持有' };
         return { ok:true, reason:'舊制攻城・無等級、費用與冷卻限制' };
     }
 
@@ -146,10 +143,8 @@
     }
 
     function openV2SiegeSelect(faction, targetEl) {
-        let clan = typeof clanGetModeInfo === 'function' ? clanGetModeInfo(player) : null;
-        if (!clan) { alert('你尚未加入血盟，無法宣布攻城戰。'); return; }
-        if (typeof clanCanSiege === 'function' && !clanCanSiege(player)) { alert('此模式沒有創立血盟的王族，無法攻城。'); return; }
-        let held = typeof rememberCastleOwnerCity === 'function' ? rememberCastleOwnerCity(clan.castle) : clan.castle;
+        let ownedCity = typeof castleOwnerCity === 'function' ? castleOwnerCity(true) : null;
+        let held = typeof rememberCastleOwnerCity === 'function' ? rememberCastleOwnerCity(ownedCity) : ownedCity;
         let el = targetEl || document.getElementById('interaction-content'); if (!el) return;
         el.innerHTML = `<div class="flex flex-col gap-4 p-2">
             <div class="text-center text-amber-200 font-bold text-lg">宣布城戰</div>

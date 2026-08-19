@@ -1885,11 +1885,9 @@ function clanRenameFromInput() {
 }
 
 function clanNpcVisible(npcId, townId) {
-    if (!player || !player.cls || player.cls === 'royal') return false;
-    let info = clanGetModeInfo(player);
-    if (!info || !clanHasFoundingRoyal(player)) return false;
-    if (info.faction === 'esti') return npcId === 'npc_esti' && townId === 'town_heine';
-    return npcId === 'npc_tros' && townId === 'town_oren';
+    // 攻城入口公開：不再需要王族職業、創盟或加入舊血盟。
+    return (npcId === 'npc_esti' && townId === 'town_heine') ||
+        (npcId === 'npc_tros' && townId === 'town_oren');
 }
 
 function clanNpcDisplayName() {
@@ -1897,11 +1895,8 @@ function clanNpcDisplayName() {
 }
 
 function clanOpenSiegePanel() {
-    let info = clanGetModeInfo(player);
-    if (!info) { alert('你尚未加入血盟。'); return; }
-    if (!clanCanSiege(player)) { alert('此模式沒有創立血盟的王族，無法攻城。'); return; }
     if (typeof openTownFloatWindow !== 'function' || typeof openSiegeSelect !== 'function') return;
-    openTownFloatWindow(clanLeaderDisplayName(player), '血盟', el => openSiegeSelect(info.faction, el));
+    openTownFloatWindow('攻城公告', '攻城', el => openSiegeSelect('solo', el));
 }
 
 function clanEsc(value) {

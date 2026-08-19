@@ -2553,8 +2553,8 @@ const DB = {
                 { id: "npc_ismael", n: "伊賽馬利", title: "交換物品", type: "exchange", d: "伊賽馬利精於以物易物，以卷軸或金幣交換稀有的祝福卷軸與飾品卷軸。" },
                 { id: "npc_pandora", n: "潘朵拉", title: "黑市", type: "exchange", d: "潘朵拉的黑市藏匿著來路不明的寶物，每 10 分鐘隨機上架一件商品，可直接購買。" },
                 { id: "npc_kent_guard", n: "肯特守衛隊長", title: "城堡護衛", type: "castleguard", d: "肯特守衛隊長統領藍色鯊魚部隊，招募血厚耐打的護衛與你並肩作戰（死亡 30 秒自動復活）。" },
-                { id: "npc_esti", n: "依詩蒂", title: "血盟", type: "pledge", d: "依詩蒂低聲訴說著血盟的古老誓言，為你尋找以血為盟的夥伴。" },
-                { id: "npc_tros", n: "特羅斯", title: "血盟", type: "pledge", d: "特羅斯握劍而立，為你尋找以血為盟的夥伴。" },
+                { id: "npc_esti", n: "依詩蒂", title: "攻城", type: "pledge", d: "依詩蒂守望城牆，任何冒險者都可向她宣布攻城戰。" },
+                { id: "npc_tros", n: "特羅斯", title: "攻城", type: "pledge", d: "特羅斯握劍而立，為所有冒險者公告攻城戰。" },
                 { id: "npc_obel", n: "奧貝勒", title: "魔物追蹤", type: "exchange", d: "奧貝勒是追蹤魔物的老手，花費金幣追蹤指定地區的特定魔物。" }
             ]
         },
@@ -2564,8 +2564,8 @@ const DB = {
                 { id: "npc_landish", n: "藍迪西", title: "雜貨商人", type: "shop", d: "風木城易主後，藍迪西重新支起攤位——攻下風木城後開放的雜貨商。" },
                 { id: "npc_wh_windwood", n: "寶金", title: "倉庫", type: "warehouse", d: "寶金在風木城的庫房裡清點貨物，替你存放物品與金幣，四個存檔角色共用。" },
                 { id: "npc_ww_guard", n: "風木傭兵隊長", title: "城堡護衛", type: "castleguard", d: "風木傭兵隊長統領暴風之刃部隊，招募攻速最快、輸出最高的護衛與你並肩作戰（死亡 30 秒自動復活）。" },
-                { id: "npc_esti", n: "依詩蒂", title: "血盟", type: "pledge", d: "依詩蒂低聲訴說著血盟的古老誓言，為你尋找以血為盟的夥伴。" },
-                { id: "npc_tros", n: "特羅斯", title: "血盟", type: "pledge", d: "特羅斯握劍而立，為你尋找以血為盟的夥伴。" },
+                { id: "npc_esti", n: "依詩蒂", title: "攻城", type: "pledge", d: "依詩蒂守望城牆，任何冒險者都可向她宣布攻城戰。" },
+                { id: "npc_tros", n: "特羅斯", title: "攻城", type: "pledge", d: "特羅斯握劍而立，為所有冒險者公告攻城戰。" },
                 { id: "npc_hert", n: "赫特", title: "魔物追蹤", type: "exchange", d: "赫特循著魔物的氣息而行，花費金幣追蹤指定地區的特定魔物。" }
             ]
         },
@@ -2576,8 +2576,8 @@ const DB = {
                 { id: "npc_wh_heine", n: "哈金", title: "倉庫", type: "warehouse", d: "哈金守著海音城的倉庫，替你存放物品與金幣，四個存檔角色共用。" },
                 { id: "npc_ally_heinec", n: "傭兵公會", title: "協力", type: "ally", d: "傭兵公會替你牽起命運的絲線，召喚其他存檔位的角色一起作戰。" },
                 { id: "npc_heine_guard", n: "海音神官隊長", title: "城堡護衛", type: "castleguard", d: "海音神官隊長統領毒蛇之牙部隊，招募攻守均衡的護衛與你並肩作戰（死亡 30 秒自動復活）。" },
-                { id: "npc_esti", n: "依詩蒂", title: "血盟", type: "pledge", d: "依詩蒂低聲訴說著血盟的古老誓言，為你尋找以血為盟的夥伴。" },
-                { id: "npc_tros", n: "特羅斯", title: "血盟", type: "pledge", d: "特羅斯握劍而立，為你尋找以血為盟的夥伴。" },
+                { id: "npc_esti", n: "依詩蒂", title: "攻城", type: "pledge", d: "依詩蒂守望城牆，任何冒險者都可向她宣布攻城戰。" },
+                { id: "npc_tros", n: "特羅斯", title: "攻城", type: "pledge", d: "特羅斯握劍而立，為所有冒險者公告攻城戰。" },
                 { id: "npc_diren", n: "帝倫", title: "魔物追蹤", type: "exchange", d: "帝倫熟知各地魔物的蹤跡，花費金幣追蹤指定地區的特定魔物。" }
             ]
         },
@@ -2655,7 +2655,7 @@ const DB = {
                 { id: "npc_ally_heine", n: "傭兵公會", title: "協力", type: "ally", d: "傭兵公會的協力之約，可讓不同命運的自己並肩而戰。召喚其他存檔位的角色一起作戰。" },
 				{ id: "npc_lumiel", n: "琉米埃爾", title: "製作", type: "craft", d: "受伊娃眷顧的鍛者，能將神聖的祝福織入凡鐵。交換受到伊娃祝福的裝備。" },
                 { id: "npc_duwen", n: "多文", title: "試煉", type: "quest", d: "歷盡沙場的老戰士多文。主持戰士的 15／30／45 級試煉與 50 級試煉：達等級後接取任務，試煉道具擊殺指定怪物必定掉落，一次完成領取全部獎勵。" },
-                { id: "npc_esti", n: "依詩蒂", title: "血盟", type: "pledge", d: "依詩蒂低聲訴說著血盟的古老誓言，為你尋找以血為盟的夥伴。" },
+                { id: "npc_esti", n: "依詩蒂", title: "攻城", type: "pledge", d: "依詩蒂守望城牆，任何冒險者都可向她宣布攻城戰。" },
                 { id: "npc_isba", n: "依斯巴", title: "港口", type: "travel", d: "老船長依斯巴守著通往迷霧的航線。搭船前往遺忘之島（費用 10 萬金幣）。" }
             ]
         },
@@ -2667,7 +2667,7 @@ const DB = {
                 { id: "npc_ally_oren", n: "傭兵公會", title: "協力", type: "ally", d: "召喚其他存檔位的角色一起作戰。" },
 				{ id: "npc_ibelbin", n: "伊貝爾賓", title: "製作", type: "craft", d: "傳說中的鍛冶名匠伊貝爾賓，爐火曾淬煉過斬龍之鋒。能打造屠龍級神兵與護甲。" },
                 { id: "npc_david", n: "大衛", title: "寶石加工", type: "craft", d: "大衛擅長雕琢寶石與寒冰結晶，能將 冰之女王的耳環 逐級精煉至更高型態。" },
-                { id: "npc_tros", n: "特羅斯", title: "血盟", type: "pledge", d: "特羅斯握劍而立，為你尋找以血為盟的夥伴。" }
+                { id: "npc_tros", n: "特羅斯", title: "攻城", type: "pledge", d: "特羅斯握劍而立，為所有冒險者公告攻城戰。" }
             ]
         },
         "town_aden": {

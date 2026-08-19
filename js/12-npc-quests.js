@@ -598,15 +598,10 @@ function renderWarehouseNPC(div){
 }
 // 🚫 v3.2.17 舊「包武項圈保管」(PET_STORAGE_MAX=8/petStoreDeposit/petStoreWithdraw/renderPetStorageNPC) 已隨項圈系統移除——
 // 新寵物保管（上限＝PET_STORAGE_MAX·同模式共通·出戰/鎖定/放生/進化）＝js/22-pets.js 的 renderPetStorageNPC（同名接手·js/11 路由不變）。
-// ===== 血盟 NPC：由玩家創立的盟主提供攻城入口 =====
+// ===== 攻城 NPC：所有角色皆可使用，不需要先建立王族或血盟 =====
 function renderPledgeNPC(div, faction) {
     _activePanel = null;
-    let info = (typeof clanGetModeInfo === 'function') ? clanGetModeInfo(player) : null;
-    if (!info || info.faction !== faction || (typeof clanCanSiege === 'function' && !clanCanSiege(player))) {
-        div.innerHTML = '<div class="p-4 text-amber-200 font-bold">你尚未加入血盟，或此模式沒有創立血盟的王族。</div>';
-        return;
-    }
-    if (typeof openSiegeSelect === 'function') openSiegeSelect(faction, div);
+    if (typeof openSiegeSelect === 'function') openSiegeSelect('solo', div);
 }
 
 // ===== 試煉兌換鈕（全寬單鈕）=====

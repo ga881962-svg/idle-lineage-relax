@@ -255,7 +255,11 @@ function _castleOwnerApply(city) {
 function castleOwnerCity(force) {
     let ctx = _castleOwnerContext();
     if (!force && _castleOwnerCacheReady()) return _castleOwnerCache.city;
-    let city = (ctx.playerRef && typeof clanGetCastleCity === 'function') ? clanGetCastleCity(ctx.playerRef) : null;
+    // 攻城現在以目前角色為單位，不再要求先建立王族血盟。舊血盟城堡資料僅作為
+    // 尚未取得個人城堡之角色的相容讀取來源；新的勝利一律寫入角色存檔。
+    let personalCity = ctx.playerRef && SIEGE_CITY[ctx.playerRef.siegeCastle] ? ctx.playerRef.siegeCastle : null;
+    let clanCity = (ctx.playerRef && typeof clanGetCastleCity === 'function') ? clanGetCastleCity(ctx.playerRef) : null;
+    let city = personalCity || clanCity;
     _castleOwnerCache = { playerRef:ctx.playerRef, mode:ctx.mode, ready:true, city:_castleOwnerApply(city) };
     return _castleOwnerCache.city;
 }
@@ -708,12 +712,9 @@ async function departToLastBattle() {
 // ===== 攻城戰 =====
 function openSiegeSelect(faction, targetEl) {
     let s = player.siege || {};
-    let clan = (typeof clanGetModeInfo === 'function') ? clanGetModeInfo(player) : null;
-    if (!clan) { alert('你尚未加入血盟，無法宣布攻城戰。'); return; }
-    if (typeof clanCanSiege === 'function' && !clanCanSiege(player)) { alert('此模式沒有創立血盟的王族，無法攻城。'); return; }
     if (s.active) { alert('攻城戰正在進行中！'); return; }
-    faction = clan.faction;
-    let held = rememberCastleOwnerCity(clan.castle);
+    faction = String(faction || 'solo');
+    let held = rememberCastleOwnerCity(castleOwnerCity(true));
     let choice = (city, label, style) => {
         let defender = typeof npcClanCastleDefender === 'function' ? npcClanCastleDefender(city, player) : null;
         let defenderText = defender ? `<span class="block text-xs font-normal mt-1">守城血盟：${typeof clanEsc === 'function' ? clanEsc(defender.name) : defender.name}</span>` : '';
@@ -742,13 +743,10 @@ function startSiege(faction, city) {
     let cfg = SIEGE_CITY[city];
     if (typeof mercenaryRoleBattleBlocked === 'function' && mercenaryRoleBattleBlocked(cfg.outer)) return;
     let s = player.siege || (player.siege = { active:false, city:'kent', gateKilled:false, towerKilled:false, endTime:0, kills:0, result:null, cooldownUntil:0, accCdUntil:0 });
-    let clan = (typeof clanGetModeInfo === 'function') ? clanGetModeInfo(player) : null;
-    if (!clan) { alert('你尚未加入血盟，無法宣布攻城戰。'); return; }
-    if (typeof clanCanSiege === 'function' && !clanCanSiege(player)) { alert('此模式沒有創立血盟的王族，無法攻城。'); return; }
     if (s.active) { alert('攻城戰正在進行中！'); return; }
-    let held = rememberCastleOwnerCity(clan.castle);
+    let held = rememberCastleOwnerCity(castleOwnerCity(true));
     // ⚔️ v3.6.05 等級限制取消（用戶拍板·原 Lv40 門檻）：與 v3.6.01 的冷卻取消一致，攻城不再有任何前置條件
-    if (held === city) { alert(`你的血盟目前已持有${cfg.name}。`); return; }
+    if (held === city) { alert(`你目前已持有${cfg.name}。`); return; }
     if (!confirm(`確定要對【${cfg.name}】宣戰嗎？限時 30 分鐘。`)) return;
     if (typeof castleGuardsOnSiegeDeclared === 'function') castleGuardsOnSiegeDeclared();   // 🏰 v3.7.96 宣戰其他城堡 → 現有城堡護衛名冊立即失效（held===city 已於上方擋掉「宣戰自己的城」）
     let accCdUntil = Number(s.accCdUntil) || 0;
@@ -771,18 +769,20 @@ function endSiege(result) {
     delete s.victoryCity;
     let _cfg = siegeCityCfg();
     if (result === 'win') {
-        let setResult = (typeof clanSetCastle === 'function') ? clanSetCastle(_cfg.key) : { ok:false };
+        let previous = SIEGE_CITY[player.siegeCastle] ? player.siegeCastle : null;
+        player.siegeCastle = _cfg.key;
+        let setResult = { ok:true, previous:previous, castle:_cfg.key };
         if (setResult && setResult.ok) {
             rememberCastleOwnerCity(_cfg.key);   // 寫入成功後立即更新快取，不等待下一個 5 秒檢查
             if (typeof npcClanOnSiegeResult === 'function') npcClanOnSiegeResult(_cfg.key, 'win', _npcDefenderClanId);
             let replaced = setResult.previous && setResult.previous !== _cfg.key && SIEGE_CITY[setResult.previous] ? `，原有的${SIEGE_CITY[setResult.previous].castleName}已放棄` : '';
-            logSys(`🏆🏰 <span class="text-yellow-300 font-bold">攻城獲勝！</span>血盟已永久佔領${_cfg.castleName}${replaced}。同模式所有角色可使用城堡、全商店 8 折，回村按鈕改為回城。`);
+            logSys(`🏆🏰 <span class="text-yellow-300 font-bold">攻城獲勝！</span>你已永久佔領${_cfg.castleName}${replaced}。可使用城堡、全商店 8 折，回村按鈕改為回城。`);
         } else {
-            rememberCastleOwnerCity(typeof clanGetCastleCity === 'function' ? clanGetCastleCity(player) : null);
-            logSys('<span class="text-red-400 font-bold">攻城獲勝，但城堡共用資料寫入失敗。</span>攻城已無冷卻，可立即再次宣戰重試佔領。');
+            rememberCastleOwnerCity(castleOwnerCity(true));
+            logSys('<span class="text-red-400 font-bold">攻城獲勝，但城堡資料寫入失敗。</span>攻城已無冷卻，可立即再次宣戰重試佔領。');
         }
     } else {
-        rememberCastleOwnerCity(typeof clanGetCastleCity === 'function' ? clanGetCastleCity(player) : null);
+        rememberCastleOwnerCity(castleOwnerCity(true));
         if (typeof npcClanOnSiegeResult === 'function') npcClanOnSiegeResult(_cfg.key, 'lose', _npcDefenderClanId);
         logSys(`🏰 <span class="text-slate-300 font-bold">攻城失敗…</span>時間到，未能攻下${_cfg.tower}。`);
     }

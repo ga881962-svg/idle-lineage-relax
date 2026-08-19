@@ -381,9 +381,8 @@
                 <button class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #28350f 0%, #6b8e23 26%, #202b0c 48%, #566f1f 72%, #151d08 100%); color: #ecfccb; border-color: #84cc16;" onclick="switchTab('audit', this); saveGame()">統計/存檔</button>
                 <button id="btn-collection" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #4a2f0c 0%, #b3850e 28%, #3f2a0c 52%, #9a720c 76%, #2e2008 100%); color: #fde68a; border-color: #d4a017;" onclick="openCollectionPanel()">收藏</button>
                 <button id="btn-autosell" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #2e1065 0%, #6d28d9 28%, #1e1b4b 52%, #7c3aed 76%, #1e133f 100%); color: #ddd6fe; border-color: #8b5cf6;" onclick="openAutoSellRules()">自動販賣</button>
-                <!-- 第四排：排行榜 / 血盟 / 設定 -->
+                <!-- 第四排：排行榜 / 設定 -->
                 <button id="btn-pvp" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #565d68 0%, #6b7280 26%, #3f4651 48%, #5a6270 72%, #313740 100%); color: #f1f5f9; border-color: #6b7280; box-shadow: inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.22), 0 1px 2px rgba(0,0,0,.35);" onclick="switchTab('pvp', this)">排行榜</button>
-                <button id="btn-clan" class="btn text-base py-2 font-bold px-0" onclick="switchTab('clan', this)">血盟</button>
                 <button id="btn-automation" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #0c4a5e 0%, #0e7490 28%, #0a3d4d 52%, #11657e 76%, #093440 100%); color: #a5f3fc; border-color: #0891b2;" onclick="openLeftAutomation()" title="設定（位於傭兵面板下方）">設定</button>
             </div>
 
@@ -452,7 +451,6 @@
                 <div id="tab-armors" class="p-3 overflow-y-auto h-full hidden flex-col gap-2"></div>
                 <div id="tab-audit" class="p-3 overflow-y-auto h-full hidden flex-col gap-2"></div>
                 <div id="tab-pvp" class="p-3 overflow-y-auto h-full hidden flex-col gap-2"></div>
-                <div id="tab-clan" class="p-3 overflow-y-auto h-full hidden flex-col gap-2"></div>
                 <!-- 🔧 v2.6.74 自動化設定改「分頁內嵌」（原 v2.6.73 浮動視窗取消）：與 能力/技能 同框架，switchTab(automation) 切換；set-* 控制項恆在 DOM 供 saveGame/自動化讀取 -->
                 <div id="tab-automation" class="p-4 text-base overflow-y-auto h-full hidden">
                     <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 flex flex-col gap-2">
@@ -615,7 +613,7 @@
     </script>
 
     <script src="js/anim-manifest.js?v=v3.8.12-necro-relics"></script>
-    <script src="js/00-data.js?v=v3.9.07-item-use-runtime-refresh"></script>
+    <script src="js/00-data.js?v=v3.9.18-solo-siege-clan-tab-removed"></script>
     <script src="js/39-monster-codex-balance.js?v=1-codex-monster-stats"></script>
 <script src="js/01-drops-config.js?v=v3.9.08-skillbook-drop-rates"></script>
 <script src="js/02-stats-recompute.js?v=v3.8.28-safe-assets-audit"></script>
@@ -627,9 +625,9 @@
     <script src="js/07-skills-cast.js?v=v3.8.26-flywing-relics"></script>
 <script src="js/08-items-equip.js?v=v3.9.07-item-use-runtime-refresh"></script>
 <script src="js/09-vfx-render.js?v=v3.8.79-hero-slash-motion"></script>
-<script src="js/10-ui-tabs.js?v=v3.9.16-online-leaderboard"></script>
-<script src="js/11-world-map.js?v=v3.9.14-mercenary-guild-entrances-removed"></script>
-<script src="js/12-npc-quests.js?v=v3.8.92-equip-collection-per-character"></script>
+<script src="js/10-ui-tabs.js?v=v3.9.18-solo-siege-clan-tab-removed"></script>
+<script src="js/11-world-map.js?v=v3.9.18-solo-siege-clan-tab-removed"></script>
+<script src="js/12-npc-quests.js?v=v3.9.18-solo-siege-clan-tab-removed"></script>
 <script src="js/13-shop-save.js?v=v3.9.06-exp-migration-v5"></script>
 <script src="js/14-craft-pandora.js?v=v3.9.15-rename-card"></script>
 <script src="js/15-cards.js?v=v3.8.29-safe-assets-audit"></script>
@@ -650,11 +648,11 @@ window.refreshEquipmentWindow = function () {};
     <script src="js/23-summons.js?v=v3.8.23-sherine-set-rework"></script>
     <script src="js/22-pets.js?v=v3.9.07-item-use-runtime-refresh"></script>
     <script src="js/24-pandora-relic-market.js?v=v3.9.17-disable-virtual-players"></script>
-    <script src="js/25-clan-system.js?v=v3.8.66-sponsor-diamond-label"></script>
+    <script src="js/25-clan-system.js?v=v3.9.18-solo-siege-clan-tab-removed"></script>
     <script src="js/26-world-channel.js?v=v3.9.17-disable-virtual-players"></script>
 <script src="js/28-pvp-arena.js?v=v3.8.29-safe-assets-audit"></script>
 <script src="js/29-siege-v2-data.js?v=v3.7.63-siege-v2"></script>
-<script src="js/30-siege-v2.js?v=v3.8.19-ascii-backgrounds"></script>
+<script src="js/30-siege-v2.js?v=v3.9.18-solo-siege-clan-tab-removed"></script>
 <script src="js/31-castle-guards.js?v=v3.8.23-sherine-set-rework"></script>
 <script src="js/32-threat.js?v=v3.8.23-sherine-set-rework"></script>
 <script src="js/33-gm-console.js?v=13-player-grants"></script>
