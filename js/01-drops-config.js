@@ -2387,6 +2387,41 @@ function normalizeExistingSkillDropRates() {
 }
 normalizeExistingSkillDropRates();
 
+// Legendary and relic equipment remain obtainable from their existing sources,
+// but use half of each source's current base drop chance. Materials, skill
+// books, consumables, and every non-equipment drop are intentionally excluded.
+function normalizeLegendaryEquipmentDropRates() {
+    const equipmentTypes = new Set(['wpn', 'arm', 'acc']);
+    const tables = [MOB_DROPS, DARK_CRYSTAL_DROPS, DRAGON_DROPS, WARRIOR_DROPS, MEM_DROPS];
+    for (const table of tables) {
+        for (const drops of Object.values(table || {})) {
+            for (const drop of drops || []) {
+                const item = DB.items && DB.items[drop && drop[0]];
+                if (!item || !equipmentTypes.has(item.type) || !(item.legend || item.relic)) continue;
+                drop[1] = Number(drop[1]) * 0.5;
+            }
+        }
+    }
+}
+normalizeLegendaryEquipmentDropRates();
+
+// Lower only the monster-drop chance of the normal weapon/armor enchant
+// scrolls. Blessed and cursed variants are separate items and keep their
+// existing sources and rates.
+function normalizeWeaponArmorScrollDropRates() {
+    const scrollIds = new Set(['scroll_weapon', 'scroll_armor']);
+    const tables = [MOB_DROPS, DARK_CRYSTAL_DROPS, DRAGON_DROPS, WARRIOR_DROPS, MEM_DROPS];
+    for (const table of tables) {
+        for (const drops of Object.values(table || {})) {
+            for (const drop of drops || []) {
+                if (!scrollIds.has(drop && drop[0])) continue;
+                drop[1] = Number(drop[1]) * 0.5;
+            }
+        }
+    }
+}
+normalizeWeaponArmorScrollDropRates();
+
 // ===== 🔧 v3.0.79 物品/裝備說明隱藏骰子公式（使用者要求：XDX 之類公式不顯示；載入時就地改寫 d 文字·不影響實際傷害計算）=====
 {
     const _dSmall = /（小型1D\d+、大型1D\d+）/g;            // 沙哈之箭彈藥骰（整段括號移除）
