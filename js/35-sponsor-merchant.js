@@ -132,6 +132,15 @@
     function remaining(kind) { let ms = Math.max(0, untilFor(kind) - Date.now()); return ms ? ('剩餘 ' + Math.ceil(ms / 86400000) + ' 天') : '未啟用'; }
     window.sponsorGetMultiplier = function (kind) { return active(kind) && PASSES[kind] ? PASSES[kind].multiplier : 1; };
     window.sponsorDropMultiplier = function () { return window.sponsorGetMultiplier('drop'); };
+    // HUD information is display-only.  The server pass expiry remains the
+    // authority: this exposes only active passes already returned by status.
+    window.sponsorPassHudStatus = function () {
+        if (!sponsorPassStatus.loaded) return [];
+        const names = { exp:'經驗加倍', gold:'金幣加倍', drop:'掉落加倍', offline:'離線掛機' };
+        return Object.keys(names).filter(active).map(function (kind) {
+            return { kind:kind, label:names[kind], days:Math.max(1, Math.ceil((untilFor(kind) - Date.now()) / 86400000)) };
+        });
+    };
     // Departure snapshots need to know whether their observed ten-minute rate
     // already contains a live pass multiplier.  This is read-only server status;
     // the server independently cross-checks it when arming.

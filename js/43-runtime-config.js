@@ -3,7 +3,7 @@
  * back to the production visual baseline. */
 (function () {
   'use strict';
-  var defaults = Object.freeze({ monster_scale:1, boss_scale:1, player_scale:1, mob_animation_fps:8, ui_entry_visibility:{} });
+  var defaults = Object.freeze({ monster_scale:1, boss_scale:1, player_scale:1, mob_animation_fps:8, exp_multiplier:1, gold_multiplier:1, drop_rate_multiplier:1, ui_entry_visibility:{} });
   var current = Object.assign({}, defaults);
 
   function finite(value, fallback, min, max) {
@@ -23,6 +23,9 @@
       boss_scale: finite(payload.boss_scale, defaults.boss_scale, 0.5, 2),
       player_scale: finite(payload.player_scale, defaults.player_scale, 0.7, 1.4),
       mob_animation_fps: Math.round(finite(payload.mob_animation_fps, defaults.mob_animation_fps, 4, 12)),
+      exp_multiplier: finite(payload.exp_multiplier, defaults.exp_multiplier, 0.1, 10),
+      gold_multiplier: finite(payload.gold_multiplier, defaults.gold_multiplier, 0.1, 10),
+      drop_rate_multiplier: finite(payload.drop_rate_multiplier, defaults.drop_rate_multiplier, 0.1, 10),
       ui_entry_visibility: safeEntries
     };
   }

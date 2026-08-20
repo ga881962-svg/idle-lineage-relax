@@ -21,7 +21,7 @@
     <title>放置天堂－休閒養老</title>
     <link rel="icon" type="image/png" href="https://storage.googleapis.com/idle-lineage-relax-assets-asia-2026/assets/favicon.png">   <!-- 🖼️ 瀏覽器分頁圖示(favicon)：把你的圖放到 assets/favicon.png 即生效；可改 href 路徑或副檔名(.ico/.svg) -->
 
-    <link rel="stylesheet" href="css/style.css?v=v3.9.25-hide-profile-buffs-weight">
+    <link rel="stylesheet" href="css/style.css?v=v3.9.26-rate-status-summary">
     <link rel="stylesheet" href="css/floating-ui.css?v=v3.5.100-audit-tail">
     <link rel="stylesheet" href="css/tailwind-built.css"><!-- 🔧 預編譯 Tailwind（取代執行期 JIT tailwind.js）：只含實際用到的 class，省 407KB runtime + 移除持續掃描 DOM 的成本。置於 style.css 之後以保留原 cascade（utility 平手時勝過自訂 class，與舊 JIT 注入順序一致） -->
 </head>
@@ -220,6 +220,7 @@
                     <div class="profile-progress-row"><span class="profile-gem">♦ <b id="profile-gems">0</b></span><span>累積經驗 <b id="profile-total-exp">0</b> · 距下級 <b id="profile-exp-left">0</b></span></div>
                     <div class="profile-live-stats"><span>即時數據</span><span>攻擊/分 <b id="profile-apm">0</b></span><span>DPS <b id="profile-dps">0</b></span><span>經驗/分 <b id="profile-exp-min">0</b></span><span>金幣/分 <b id="profile-gold-min">0</b></span></div>
                     <div class="profile-companion">♣ 出戰中：<b id="profile-companion-name">未出戰</b></div>
+                    <div id="profile-rate-summary" class="profile-rate-summary" aria-live="polite"></div>
                     <div id="profile-buff-tags" class="profile-buff-tags hidden" aria-hidden="true"></div>
                 </div>
             </div>
@@ -620,7 +621,7 @@
     <script src="js/07-skills-cast.js?v=v3.8.26-flywing-relics"></script>
 <script src="js/08-items-equip.js?v=v3.9.23-automation-supply-ui"></script>
 <script src="js/09-vfx-render.js?v=v3.8.79-hero-slash-motion"></script>
-<script src="js/43-runtime-config.js?v=v1-runtime-config"></script>
+<script src="js/43-runtime-config.js?v=v1.1-rate-status-summary"></script>
 <script src="js/10-ui-tabs.js?v=v3.9.21-item-modal-actions-refresh"></script>
 <script src="js/11-world-map.js?v=v3.9.20-windwood-return-rule"></script>
 <script src="js/12-npc-quests.js?v=v3.9.18-solo-siege-clan-tab-removed"></script>
@@ -653,9 +654,9 @@ window.refreshEquipmentWindow = function () {};
 <script src="js/32-threat.js?v=v3.8.23-sherine-set-rework"></script>
 <script src="js/33-gm-console.js?v=13-player-grants"></script>
 <script src="js/27-offline-rewards.js?v=v3.8.94-offline-canonical-rollout"></script>
-<script src="js/35-sponsor-merchant.js?v=v3.9.15-rename-card"></script>
+<script src="js/35-sponsor-merchant.js?v=v3.9.26-rate-status-summary"></script>
 <script src="js/36-offline-hunt.js?v=v3.8.97-offline-death-return"></script>
-<script src="js/37-profile-progress.js?v=2-direct-game-state"></script>
+<script src="js/37-profile-progress.js?v=3-rate-status-summary"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/38-online-auth.js?v=v3.9.23-runtime-config-admin"></script>
   <script src="js/44-runtime-config-admin.js?v=v1-runtime-config-admin"></script>

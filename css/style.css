@@ -3686,6 +3686,16 @@ button.classic-skill-cell { cursor:pointer; }
 #status-panel .profile-companion b { color:#6ee7b7; }
 #status-panel .profile-buff-tags { order:7; width:100%; display:flex; flex-wrap:wrap; gap:4px; min-height:0; }
 #status-panel .profile-buff-tags span { padding:2px 6px; border:1px solid #b7791f; border-radius:5px; background:rgba(65,31,5,.82); color:#fde68a; font-size:11px; }
+#status-panel .profile-rate-summary { order:7; width:100%; display:flex; flex-direction:column; gap:4px; padding-top:3px; }
+#status-panel .profile-rate-server, #status-panel .profile-rate-passes { display:flex; flex-wrap:wrap; gap:4px; }
+#status-panel .profile-rate-summary span { border:1px solid #71541e; border-radius:5px; padding:2px 6px; font-size:11px; font-weight:800; line-height:1.25; background:rgba(50,34,8,.82); }
+#status-panel .profile-rate-summary .rate-exp { color:#f9df70; }
+#status-panel .profile-rate-summary .rate-gold { color:#ffd166; }
+#status-panel .profile-rate-summary .rate-drop { color:#ff9fc8; }
+#status-panel .profile-rate-summary .pass-exp { color:#f9df70; }
+#status-panel .profile-rate-summary .pass-gold { color:#ffd166; }
+#status-panel .profile-rate-summary .pass-drop { color:#ff9fc8; }
+#status-panel .profile-rate-summary .pass-offline { color:#c4b5fd; }
 #status-panel .profile-durability { order:8; width:100%; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:8px; color:#fbbf24; font-weight:700; font-size:12px; }
 #status-panel .profile-durability > div { height:14px; background:#172033; border-radius:8px; overflow:hidden; box-shadow:inset 0 1px 4px #000; }
 #status-panel .profile-durability i { display:block; height:100%; width:0; background:linear-gradient(90deg,#e88900,#ffb11a); transition:width .2s; }

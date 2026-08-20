@@ -3,17 +3,16 @@
     function number(value) {
         return Math.max(0, Math.floor(Number(value) || 0)).toLocaleString();
     }
-    function rate(kind) {
-        if (typeof window.sponsorGetMultiplier === 'function') {
-            return Math.max(1, Number(window.sponsorGetMultiplier(kind)) || 1);
-        }
-        return 1;
+    function serverRate(key) {
+        const config = typeof window.runtimeConfig === 'function' ? window.runtimeConfig() : {};
+        const value = Number(config && config[key]);
+        return Number.isFinite(value) && value > 0 ? value : 1;
     }
-    function dropRate() {
-        if (typeof window.sponsorDropMultiplier === 'function') {
-            return Math.max(1, Number(window.sponsorDropMultiplier()) || 1);
-        }
-        return 1;
+    function passTags() {
+        if (typeof window.sponsorPassHudStatus !== 'function') return '';
+        return window.sponsorPassHudStatus().map(function (pass) {
+            return `<span class="pass-${pass.kind}">${pass.label} ${pass.days}天</span>`;
+        }).join('');
     }
     function ensureRows() {
         const bar = document.getElementById('bar-exp');
@@ -24,10 +23,11 @@
             detail.id = 'profile-exp-detail';
             bar.parentElement.insertAdjacentElement('afterend', detail);
         }
-        let rates = document.getElementById('profile-rate-tags');
+        let rates = document.getElementById('profile-rate-summary');
         if (!rates) {
             rates = document.createElement('div');
-            rates.id = 'profile-rate-tags';
+            rates.id = 'profile-rate-summary';
+            rates.className = 'profile-rate-summary';
             detail.insertAdjacentElement('afterend', rates);
         }
         return { detail, rates };
@@ -43,7 +43,7 @@
         const expText = document.getElementById('txt-exp');
         if (expText) expText.textContent = `EXP  ${pct.toFixed(2)}%`;
         rows.detail.innerHTML = `<span>EXP <b>${number(current)}</b> / ${number(need)}</span><span>Next <b>${number(left)}</b></span>`;
-        rows.rates.innerHTML = `<span class="rate-exp">EXP x${rate('exp').toFixed(2)}</span><span class="rate-gold">GOLD x${rate('gold').toFixed(2)}</span><span class="rate-drop">DROP x${dropRate().toFixed(2)}</span>`;
+        rows.rates.innerHTML = `<div class="profile-rate-server"><span class="rate-exp">⚔ 經驗 x${serverRate('exp_multiplier').toFixed(2)}</span><span class="rate-gold">💰 金幣 x${serverRate('gold_multiplier').toFixed(2)}</span><span class="rate-drop">🎁 掉落 x${serverRate('drop_rate_multiplier').toFixed(2)}</span></div><div class="profile-rate-passes">${passTags()}</div>`;
     }
     window.refreshProfileProgress = refresh;
     setInterval(refresh, 250);
