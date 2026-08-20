@@ -2422,6 +2422,30 @@ function normalizeWeaponArmorScrollDropRates() {
 }
 normalizeWeaponArmorScrollDropRates();
 
+// Crafting-material tuning: keep each existing source, but lower only the
+// requested material rates. Soulstone fragments retain their current three
+// source tiers (ordinary / elite / boss) at 0.1% / 0.5% / 10% respectively.
+function normalizeCraftMaterialDropRates() {
+    const tables = [MOB_DROPS, DARK_CRYSTAL_DROPS, DRAGON_DROPS, WARRIOR_DROPS, MEM_DROPS];
+    for (const table of tables) {
+        for (const drops of Object.values(table || {})) {
+            for (const drop of drops || []) {
+                const id = drop && drop[0];
+                if (id === 'mat_black_powder' || id === 'mat_holy_relic') {
+                    drop[1] = 0.01;
+                    continue;
+                }
+                if (id !== 'mat_soulstone_shard') continue;
+                const originalRate = Number(drop[1]);
+                if (originalRate === 1) drop[1] = 0.1;
+                else if (originalRate === 5) drop[1] = 0.5;
+                else if (originalRate === 100) drop[1] = 10;
+            }
+        }
+    }
+}
+normalizeCraftMaterialDropRates();
+
 // ===== 🔧 v3.0.79 物品/裝備說明隱藏骰子公式（使用者要求：XDX 之類公式不顯示；載入時就地改寫 d 文字·不影響實際傷害計算）=====
 {
     const _dSmall = /（小型1D\d+、大型1D\d+）/g;            // 沙哈之箭彈藥骰（整段括號移除）
