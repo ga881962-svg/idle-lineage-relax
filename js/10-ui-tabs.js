@@ -1304,13 +1304,50 @@ function buildItemDescHTML(item) {
     return desc;
 }
 
+// The action window must never become a blank shell because one optional
+// tooltip enhancer cannot interpret an older or newly-added item instance.
+// Keep the rich renderer as the normal path; this only supplies the canonical
+// item lore and the safe, basic fields when that renderer throws.
+function safeItemDescHTML(item) {
+    const d = item && DB.items && DB.items[item.id];
+    if (!d) return '<span class="text-slate-400">找不到此道具的說明資料。</span>';
+    try {
+        const rich = buildItemDescHTML(item);
+        if (typeof rich === 'string' && rich.trim()) return rich;
+    } catch (err) {
+        console.error('[item-description] rich tooltip render failed', item && item.id, err);
+    }
+
+    const rows = [];
+    if (d.d) rows.push(String(d.d));
+    const basic = [];
+    const add = (label, value, suffix = '') => {
+        const n = Number(value);
+        if (Number.isFinite(n) && n !== 0) basic.push(`${label} ${n > 0 ? '+' : ''}${n}${suffix}`);
+    };
+    add('力量', d.str); add('敏捷', d.dex); add('體質', d.con);
+    add('智力', d.int); add('精神', d.wis); add('魅力', d.cha);
+    add('HP', d.mhp); add('MP', d.mmp); add('HP 自然恢復', d.hpR);
+    add('MP 自然恢復', d.mpR); add('魔法傷害', d.mdmg);
+    add('魔法命中', d.magicHit); add('額外傷害', d.extraDmg);
+    add('額外命中', d.extraHit); add('傷害減免', d.dr);
+    add('魔防(MR)', d.mr); add('火屬性抗性', d.resFire);
+    add('水屬性抗性', d.resWater); add('風屬性抗性', d.resWind);
+    add('地屬性抗性', d.resEarth); add('經驗獲得', d.expBonus, '%');
+    add('金幣獲得', d.goldBonus, '%');
+    if (d.ac !== undefined && Number.isFinite(Number(d.ac))) basic.push(`防禦(AC) ${Number(d.ac) >= 0 ? '-' : '+'}${Math.abs(Number(d.ac))}`);
+    if (basic.length) rows.push(`<span class="text-violet-400 font-bold">${basic.join(' / ')}</span>`);
+    if (d.noEnhance) rows.push('<span class="text-rose-300 font-bold">無法強化</span>');
+    return rows.join('<br>') || '<span class="text-slate-400">此道具暫無額外說明。</span>';
+}
+
 function compareCardHTML(eqItem, slotLabel) {
     let ed = DB.items[eqItem.id];
     if(!ed) return `<div class="text-emerald-300 text-xs font-bold mb-1">【${slotLabel}】</div><div class="text-slate-500 text-sm">（無資料）</div>`;
     let glow = getGlowClass(eqItem, ed);
     let icon = `<img src="${getIconUrl(ed)}" onerror="this.style.display='none';" class="w-7 h-7 mr-2 object-contain pointer-events-none ${glow}">`;
     let header = `<div class="flex items-center font-bold text-lg ${getItemColor(eqItem)} border-b border-slate-700 pb-2 mb-2">${icon}<span>${getItemFullName(eqItem)}</span></div>`;
-    let body = buildItemDescHTML(eqItem);
+    let body = safeItemDescHTML(eqItem);
     return `<div class="text-emerald-300 text-xs font-bold mb-1">【${slotLabel}】</div>${header}<div class="text-sm text-slate-300 leading-relaxed">${body}</div>`;
 }
 
@@ -1331,9 +1368,20 @@ function openModal(item, isEq, slot) {
     document.getElementById('modal-item-name').innerHTML = `<div class="flex items-center">${iconHtml}<span>${getItemFullName(item)}${_legendTag}</span></div> ${lockBtnHTML}`;
     document.getElementById('modal-item-name').className = `text-2xl font-bold mb-3 border-b border-slate-600 pb-3 flex justify-between items-center ${getItemColor(item)}`;
     
-    let desc = buildItemDescHTML(item);
+    // Render the description before optional equipment eligibility checks.
+    // A bad eligibility branch must never blank the item window itself.
+    let desc = safeItemDescHTML(item);
+    document.getElementById('modal-item-desc').innerHTML = desc;
     let _modalEquipItem = d.type === 'wpn' || d.type === 'arm' || d.type === 'acc';
-    let _modalCanEquip = !_modalEquipItem || checkCanEquip(item);
+    let _modalCanEquip = !_modalEquipItem;
+    if (_modalEquipItem) {
+        try {
+            _modalCanEquip = checkCanEquip(item);
+        } catch (err) {
+            console.error('[item-description] equipment eligibility check failed', item && item.id, err);
+            _modalCanEquip = false;
+        }
+    }
     if (!isEq && _modalEquipItem && !_modalCanEquip) desc += `<br><span class="text-red-400 font-bold">無法裝備${d.reqAvatar ? `：僅限${d.reqAvatar}` : ''}</span>`;
     
     let sellPrice = getSellPrice(item);
