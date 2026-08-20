@@ -24,6 +24,7 @@
     let armTimer = null;
     let lastArmedMap = '';
     let settling = false;
+    let deathReturnInFlight = false;
 
     function currentMapId() {
         return (typeof mapState !== 'undefined' && mapState && mapState.current) ? String(mapState.current) : '';
@@ -232,7 +233,22 @@
         } catch (error) {
             const message = String(error && (error.message || error.error || error) || 'MAP_UNAVAILABLE');
             if (/CHECKPOINT_CONFLICT/i.test(message) && typeof window.onlineCloudRestoreCheckpoint === 'function') await window.onlineCloudRestoreCheckpoint();
-            return { allowed: false, reason: (message.match(/(MISSING_SCROLL|MISSING_KEY|SHIP_REQUIRED|LEVEL_REQUIRED|QUEST_REQUIRED|PASS_REQUIRED|MAP_UNAVAILABLE|PVP_RETURN_DISABLED)/) || [])[1] || 'MAP_UNAVAILABLE' };
+            return { allowed: false, reason: (message.match(/(CHECKPOINT_CONFLICT|OFFLINE_FEATURE_DISABLED|OFFLINE_PASS_REQUIRED|MISSING_SCROLL|MISSING_KEY|SHIP_REQUIRED|LEVEL_REQUIRED|QUEST_REQUIRED|PASS_REQUIRED|CASTLE_REQUIRED|MAP_UNAVAILABLE|PVP_RETURN_DISABLED)/) || [])[1] || 'MAP_UNAVAILABLE' };
+        }
+    }
+
+    // This is the one online death continuation.  It deliberately reuses the
+    // canonical return check and map-entry RPC; ordinary "Depart" never calls
+    // this path and remains independent from the Offline Pass.
+    async function deathReturnAfterDefeat() {
+        if (!onlineReady()) return { attempted: false, allowed: false, reason: 'OFFLINE_NOT_ONLINE' };
+        if (deathReturnInFlight) return { attempted: true, allowed: false, reason: 'RETURN_IN_PROGRESS' };
+        deathReturnInFlight = true;
+        try {
+            const result = await returnToLastMap('death_return');
+            return Object.assign({ attempted: true }, result || { allowed: false, reason: 'MAP_UNAVAILABLE' });
+        } finally {
+            deathReturnInFlight = false;
         }
     }
 
@@ -269,4 +285,5 @@
     window.offlineHuntDisarm = disarm;
     window.offlineHuntCanReturn = canReturnToLastMap;
     window.offlineHuntReturnToLastMap = returnToLastMap;
+    window.offlineHuntDeathReturnAfterDefeat = deathReturnAfterDefeat;
 }());

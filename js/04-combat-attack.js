@@ -1749,6 +1749,29 @@ function killPlayer() {
     if (!_duelDeath) {
         document.getElementById('btn-revive').classList.remove('hidden');
         updateReviveInPlaceBtn();   // 視條件顯示「原地復活」按鈕
+
+        // Online Offline-Pass return is a single server-authoritative death
+        // continuation.  The server owns the pass, saved hunting map and all
+        // map-entry costs/rules; a refusal uses the existing town revival.
+        if (typeof window.offlineHuntDeathReturnAfterDefeat === 'function') {
+            window.offlineHuntDeathReturnAfterDefeat().then(function (result) {
+                if (!result || !result.attempted) return; // local/offline mode keeps its normal death UI
+                if (result.allowed) {
+                    try { logSys('<span class="text-emerald-300 font-bold">離線掛機月卡生效：已復活並返回原練功地圖。</span>'); } catch (e) {}
+                    return;
+                }
+                const reason = result.reason || 'MAP_UNAVAILABLE';
+                if (reason === 'CHECKPOINT_CONFLICT' || reason === 'RETURN_IN_PROGRESS') return;
+                // Do not leave an online death frozen on the hunting map when
+                // the canonical return is refused.  `revive()` is the existing
+                // town-revival flow; it does not alter ordinary Depart.
+                if (player && player.dead && typeof revive === 'function') revive();
+                try { logSys('<span class="text-amber-300">無法自動返回原練功地圖：' + reason + '；已在村莊復活。</span>'); } catch (e) {}
+            }).catch(function () {
+                // Network/transport failure must retain the existing manual
+                // death controls rather than assuming a successful return.
+            });
+        }
     }
     updateUI();
 }
