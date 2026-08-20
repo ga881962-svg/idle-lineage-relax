@@ -35,6 +35,18 @@
             return `<span class="pass-${pass.kind}">${pass.label} ${pass.days}天</span>`;
         }).join('');
     }
+    function levelUpTime(left) {
+        if (!player || player.lv >= PLAYER_LEVEL_CAP) return '已達最高等級';
+        const audit = (typeof _audit !== 'undefined' && _audit) ? _audit : null;
+        const elapsedMinutes = Math.max(0, (Date.now() - Number((audit && audit.start) || Date.now())) / 60000);
+        const expPerMinute = elapsedMinutes > 0 ? Math.floor(Math.max(0, Number((audit && audit.exp) || 0)) / elapsedMinutes) : 0;
+        if (expPerMinute <= 0) return '暫無經驗資料';
+        const minutes = Math.max(1, Math.ceil(Math.max(0, left) / expPerMinute));
+        if (minutes < 60) return `約 ${minutes} 分鐘`;
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        return remainingMinutes ? `約 ${hours} 小時 ${remainingMinutes} 分` : `約 ${hours} 小時`;
+    }
     function ensureRows() {
         const bar = document.getElementById('bar-exp');
         if (!bar || !bar.parentElement) return null;
@@ -63,7 +75,7 @@
         const pct = player.lv >= PLAYER_LEVEL_CAP ? 100 : (need ? Math.min(100, current / need * 100) : 0);
         const expText = document.getElementById('txt-exp');
         if (expText) expText.textContent = `EXP  ${pct.toFixed(2)}%`;
-        rows.detail.innerHTML = `<span>EXP <b>${number(current)}</b> / ${number(need)}</span><span>Next <b>${number(left)}</b></span>`;
+        rows.detail.innerHTML = `<span>EXP <b>${number(current)}</b> / ${number(need)}</span><span>升級時間 <b>${levelUpTime(left)}</b></span>`;
         rows.rates.innerHTML = `<div class="profile-rate-server"><span class="rate-exp">⚔ 經驗 x${serverRate('exp_multiplier').toFixed(2)}</span><span class="rate-gold">💰 金幣 x${serverRate('gold_multiplier').toFixed(2)}</span><span class="rate-drop">🎁 掉落 x${serverRate('drop_rate_multiplier').toFixed(2)}</span></div><div class="profile-rate-passes">${passTags()}</div>`;
     }
     window.refreshProfileProgress = refresh;

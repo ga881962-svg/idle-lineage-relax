@@ -283,6 +283,7 @@ const EXP_REQ_EARLY_MULTIPLIER = 0.50;
 const EXP_REQ_LV50_59_MULTIPLIER = 0.80;
 const EXP_REQ_LV60_69_MULTIPLIER = 0.90;
 const EXP_REQ_LV1_50_V5_MULTIPLIER = 0.50;
+const EXP_REQ_LV50_60_V6_MULTIPLIER = 0.50;
 function getExpReqV3(lv) {
     lv = Math.max(1, Math.floor(Number(lv) || 1));
     if (lv >= PLAYER_LEVEL_CAP) return Infinity;
@@ -300,11 +301,18 @@ function getExpReqV4(lv) {
         : 1;
     return Math.max(1, Math.floor(prior * multiplier));
 }
-function getExpReq(lv) {
+// v5 已上線曲線；僅供 expMigV=6 將既有角色保留在同一經驗百分比。
+function getExpReqV5(lv) {
     lv = Math.max(1, Math.floor(Number(lv) || 1));
     const prior = getExpReqV4(lv);
     if (!isFinite(prior)) return prior;
     return Math.max(1, Math.floor(prior * (lv <= 50 ? EXP_REQ_LV1_50_V5_MULTIPLIER : 1)));
+}
+function getExpReq(lv) {
+    lv = Math.max(1, Math.floor(Number(lv) || 1));
+    const prior = getExpReqV5(lv);
+    if (!isFinite(prior)) return prior;
+    return Math.max(1, Math.floor(prior * (lv >= 50 && lv <= 60 ? EXP_REQ_LV50_60_V6_MULTIPLIER : 1)));
 }
 // 舊制需求（v2.6.40 分段放大制·僅供 js/13 expMigV=2 一次性遷移換算，勿用於遊戲邏輯）
 function _expReqOldV1(lv) {

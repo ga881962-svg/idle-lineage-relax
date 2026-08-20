@@ -1482,7 +1482,8 @@ function _updateUIImpl() {
         _set('profile-gems', player.gems || player.diamonds || 0);
         _set('profile-total-exp', (_auditNow && _auditNow.exp) || player.exp || 0);
         _set('profile-exp-left', Math.max(0, (nxtE || 0) - (player.exp || 0)));
-        _set('profile-apm', Math.round(60 / Math.max(.1, Number(player.d.atkSpd || player.d.aspd || 1))));
+        // 「擊殺/分」只使用現有戰鬥統計的實際擊殺數，不再把攻擊速度誤當成擊殺數。
+        _set('profile-apm', Math.floor(Math.max(0, Number((_auditNow && _auditNow.kills) || 0)) / _mins));
         _set('profile-dps', _dpsNow);
         _set('profile-exp-min', Math.floor(((_auditNow && _auditNow.exp) || 0) / _mins));
         _set('profile-gold-min', Math.floor(_goldNow / _mins));
