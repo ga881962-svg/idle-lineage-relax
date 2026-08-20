@@ -11,6 +11,16 @@
         return base * (passKind ? passMultiplier(passKind) : 1);
     }
     function passMultiplier(kind) {
+        // The duration tags and the effective-rate tags must be derived from
+        // the same server status snapshot.  Do not let a stale gameplay
+        // multiplier make the HUD show x1.00 while the active pass is shown
+        // directly below it.
+        if (typeof window.sponsorPassHudStatus === 'function') {
+            const activePass = window.sponsorPassHudStatus().find(function (pass) {
+                return pass && pass.kind === kind;
+            });
+            if (activePass) return 1.2;
+        }
         if (kind === 'drop' && typeof window.sponsorDropMultiplier === 'function') {
             return Math.max(1, Number(window.sponsorDropMultiplier()) || 1);
         }
