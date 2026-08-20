@@ -1054,6 +1054,7 @@ function equipItem(item) {
     }
     
     player.eq[slot] = singleItem;
+    try { if (typeof updateClassPotionRows === 'function') updateClassPotionRows(); } catch (e) {}
     syncShahaArrow();   // 🏝️ 沙哈之弓：裝備/換武器後同步無限箭
     syncDualWield();    // ⚔️ 迅猛雙斧：換主手後若副手條件失效則退回背包
 
@@ -1083,6 +1084,7 @@ function unequipItem(slot) {
         renderTabs();
         renderSkillSelects();   // 卸下裝備後即時更新自動化技能選項
     }
+    try { if (typeof updateClassPotionRows === 'function') updateClassPotionRows(); } catch (e) {}
     closeModal();
 }
 

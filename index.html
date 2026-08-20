@@ -21,7 +21,7 @@
     <title>放置天堂－休閒養老</title>
     <link rel="icon" type="image/png" href="https://storage.googleapis.com/idle-lineage-relax-assets-asia-2026/assets/favicon.png">   <!-- 🖼️ 瀏覽器分頁圖示(favicon)：把你的圖放到 assets/favicon.png 即生效；可改 href 路徑或副檔名(.ico/.svg) -->
 
-    <link rel="stylesheet" href="css/style.css?v=v3.9.22-runtime-config">
+    <link rel="stylesheet" href="css/style.css?v=v3.9.23-automation-supply-ui">
     <link rel="stylesheet" href="css/floating-ui.css?v=v3.5.100-audit-tail">
     <link rel="stylesheet" href="css/tailwind-built.css"><!-- 🔧 預編譯 Tailwind（取代執行期 JIT tailwind.js）：只含實際用到的 class，省 407KB runtime + 移除持續掃描 DOM 的成本。置於 style.css 之後以保留原 cascade（utility 平手時勝過自訂 class，與舊 JIT 注入順序一致） -->
 </head>
@@ -499,16 +499,16 @@
                     </div>
 
                     <!-- 🧪 v3.3.15 藥水/卷軸：自動使用＝自動購買合併（勾選＝缺貨時自動買一瓶再用）；左右各一縮短高度 -->
-                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm items-center">
-                        <label class="cursor-pointer flex items-center gap-2"><input type="checkbox" id="set-haste" class="w-4 h-4"> <span class="text-green-300">自我加速藥水</span></label>
-                        <label id="ui-brave-row" class="cursor-pointer flex items-center gap-2"><input type="checkbox" id="set-brave" class="w-4 h-4"> <span class="text-purple-300">勇敢藥水</span></label>
-                        <label class="cursor-pointer flex items-center gap-2"><input type="checkbox" id="set-blue" class="w-4 h-4"> <span class="text-blue-300">藍色藥水</span></label>
-                        <label id="ui-cautious-row" class="cursor-pointer flex items-center gap-2"><input type="checkbox" id="set-cautious" class="w-4 h-4"> <span class="text-purple-300">慎重藥水</span></label>
-                        <label id="ui-elfcookie-row" class="cursor-pointer flex items-center gap-2"><input type="checkbox" id="set-elfcookie" class="w-4 h-4"> <span class="text-yellow-200">精靈餅乾</span></label>
-                        <label class="cursor-pointer flex items-center gap-2"><input type="checkbox" id="set-poly" class="w-4 h-4"> <span class="text-gray-300">變形卷軸</span></label>
-                        <label class="cursor-pointer flex items-center gap-2"><input type="checkbox" id="set-magicbarrier" class="w-4 h-4"> <span class="text-cyan-300">魔法屏障卷軸</span></label>
-                        <label class="cursor-pointer flex items-center gap-2"><input type="checkbox" id="set-teleport" class="w-4 h-4"> <span class="text-sky-300">迴避頭目(瞬移卷軸)</span></label>
-                        <label class="col-span-2 cursor-pointer flex items-center gap-2 border-t border-slate-700 pt-2 mt-1"><input type="checkbox" id="set-auto-buy-arrow" class="w-4 h-4" checked> <span class="text-orange-300">弓箭耗盡時自動購買 1000 銀箭</span></label>
+                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 automation-supply-grid text-sm items-center">
+                        <label class="automation-supply-row cursor-pointer" data-supply-item="potion_haste"><input type="checkbox" id="set-haste" class="w-4 h-4"><span class="text-green-300">自我加速藥水</span><b class="automation-supply-count"></b><em>自動使用／補貨</em></label>
+                        <label id="ui-brave-row" class="automation-supply-row cursor-pointer" data-supply-item="potion_brave"><input type="checkbox" id="set-brave" class="w-4 h-4"><span class="text-purple-300">勇敢藥水</span><b class="automation-supply-count"></b><em>自動使用／補貨</em></label>
+                        <label class="automation-supply-row cursor-pointer" data-supply-item="potion_blue"><input type="checkbox" id="set-blue" class="w-4 h-4"><span class="text-blue-300">藍色藥水</span><b class="automation-supply-count"></b><em>自動使用／補貨</em></label>
+                        <label id="ui-cautious-row" class="automation-supply-row cursor-pointer" data-supply-item="new_item_140"><input type="checkbox" id="set-cautious" class="w-4 h-4"><span class="text-purple-300">慎重藥水</span><b class="automation-supply-count"></b><em>自動使用／補貨</em></label>
+                        <label id="ui-elfcookie-row" class="automation-supply-row cursor-pointer" data-supply-item="new_item_139"><input type="checkbox" id="set-elfcookie" class="w-4 h-4"><span class="text-yellow-200">精靈餅乾</span><b class="automation-supply-count"></b><em>自動使用／補貨</em></label>
+                        <label class="automation-supply-row cursor-pointer" data-supply-item="scroll_poly"><input type="checkbox" id="set-poly" class="w-4 h-4"><span class="text-gray-300">變形卷軸</span><b class="automation-supply-count"></b><em>自動使用／補貨</em></label>
+                        <label class="automation-supply-row cursor-pointer" data-supply-item="scroll_magicbarrier"><input type="checkbox" id="set-magicbarrier" class="w-4 h-4"><span class="text-cyan-300">魔法卷軸(魔法屏障)</span><b class="automation-supply-count"></b><em>自動使用／補貨</em></label>
+                        <label class="automation-supply-row cursor-pointer" data-supply-item="scroll_teleport"><input type="checkbox" id="set-teleport" class="w-4 h-4"><span class="text-sky-300">瞬間移動卷軸(遇BOSS)</span><b class="automation-supply-count"></b><em>自動使用／補貨</em></label>
+                        <label id="ui-arrow-row" class="automation-supply-row cursor-pointer automation-supply-wide" data-supply-item="wpn_22"><input type="checkbox" id="set-auto-buy-arrow" class="w-4 h-4" checked><span class="text-orange-300">弓箭耗盡時補 1000 銀箭</span><b class="automation-supply-count"></b><em>自動購買</em></label>
 						<div id="auto-buff-skills" class="col-span-2 grid grid-cols-2 gap-1 mt-1 border-t border-slate-600 pt-2"></div>
                     </div>
                     <!-- 匯出/存檔 已移至右上角按鈕區（3×4） -->
@@ -623,13 +623,13 @@
 <script src="js/34-map-drop-browser.js?v=v3.8.54-boss-panacea-unified"></script>
 <script src="js/06-status-allies.js?v=v3.9.13-mercenary-guild-closed"></script>
     <script src="js/07-skills-cast.js?v=v3.8.26-flywing-relics"></script>
-<script src="js/08-items-equip.js?v=v3.9.07-item-use-runtime-refresh"></script>
+<script src="js/08-items-equip.js?v=v3.9.23-automation-supply-ui"></script>
 <script src="js/09-vfx-render.js?v=v3.8.79-hero-slash-motion"></script>
 <script src="js/43-runtime-config.js?v=v1-runtime-config"></script>
 <script src="js/10-ui-tabs.js?v=v3.9.21-item-modal-actions-refresh"></script>
 <script src="js/11-world-map.js?v=v3.9.20-windwood-return-rule"></script>
 <script src="js/12-npc-quests.js?v=v3.9.18-solo-siege-clan-tab-removed"></script>
-<script src="js/13-shop-save.js?v=v3.9.06-exp-migration-v5"></script>
+<script src="js/13-shop-save.js?v=v3.9.23-automation-supply-ui"></script>
 <script src="js/14-craft-pandora.js?v=v3.9.15-rename-card"></script>
 <script src="js/15-cards.js?v=v3.8.29-safe-assets-audit"></script>
 <script src="js/16-equip-book.js?v=v3.8.92-equip-collection-per-character"></script>
@@ -772,7 +772,7 @@ window.addEventListener('load', function () {
   if (screen && !screen.dataset.mobilePage) screen.dataset.mobilePage = 'battle';
 });
 /* 設定移至左側傭兵面板下方，保留原有控制項與存檔邏輯。 */
-function openLeftAutomation() {
+function openLeftAutomation(scrollIntoView) {
   const panel = document.getElementById('left-automation-panel');
   const host = document.getElementById('left-automation-content');
   const settings = document.getElementById('tab-automation');
@@ -783,7 +783,7 @@ function openLeftAutomation() {
   settings.classList.remove('hidden');
   const icon = document.getElementById('left-automation-toggle');
   if (icon) icon.textContent = '⌃';
-  panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  if (scrollIntoView !== false) panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 function toggleLeftAutomation() {
   const panel = document.getElementById('left-automation-panel');

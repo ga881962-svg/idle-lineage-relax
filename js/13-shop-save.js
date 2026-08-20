@@ -1462,10 +1462,36 @@ function updateClassPotionRows() {
     let braveRow = document.getElementById('ui-brave-row');
     let cautiousRow = document.getElementById('ui-cautious-row');
     let elfRow = document.getElementById('ui-elfcookie-row');
+    let arrowRow = document.getElementById('ui-arrow-row');
     if(braveRow) braveRow.classList.toggle('hidden', player.cls !== 'knight' && player.cls !== 'dragon' && player.cls !== 'warrior' && player.cls !== 'royal');
     if(cautiousRow) cautiousRow.classList.toggle('hidden', player.cls !== 'mage' && player.cls !== 'illusion');
     if(elfRow) elfRow.classList.toggle('hidden', player.cls !== 'elf');
+    // Arrow replenishment is meaningful only while the current weapon uses
+    // arrows.  It is a presentation filter; consumeArrow() keeps the actual
+    // existing combat validation and purchase behaviour.
+    let weapon = player.eq && player.eq.wpn && DB.items[player.eq.wpn.id];
+    if(arrowRow) arrowRow.classList.toggle('hidden', !(weapon && (weapon.isBow || weapon.ranged)));
+    refreshAutomationSupplyCounts();
 }
+
+function refreshAutomationSupplyCounts() {
+    if (!player || !Array.isArray(player.inv)) return;
+    document.querySelectorAll('.automation-supply-row[data-supply-item]').forEach(row => {
+        let itemId = row.dataset.supplyItem;
+        let count = player.inv.filter(i => i && i.id === itemId).reduce((sum, i) => sum + (Number(i.cnt) || 1), 0);
+        // Arrows may currently be equipped, but they are still part of the
+        // player's remaining supply and should not display as zero.
+        if (player.eq && player.eq.arrow && player.eq.arrow.id === itemId) count += Number(player.eq.arrow.cnt) || 1;
+        let out = row.querySelector('.automation-supply-count');
+        if (out) out.textContent = '剩 ' + count;
+    });
+}
+
+// Supply counts are presentational only.  Keep them fresh without changing
+// automation state, inventory, or any of the existing purchase behaviour.
+setInterval(function () {
+    try { refreshAutomationSupplyCounts(); } catch (e) {}
+}, 1000);
 
 // 🛡️ v2.6.69 修（審計#1）：UI「自動化設定」是否已與目前角色同步完成。
 //    loadGame 途中（config 還原在尾端）觸發的 saveGame（如進村領取傭兵經驗）若照舊以「當下 DOM」重建 player.config，
@@ -1986,6 +2012,13 @@ function loadGame() {
         }
         
         updateClassPotionRows();
+        // Desktop keeps automation directly beneath the character/sidebar
+        // panels. Mobile retains its existing Settings-page navigation.
+        try {
+            if (window.matchMedia && window.matchMedia('(min-width: 701px)').matches && typeof openLeftAutomation === 'function') {
+                openLeftAutomation(false);
+            }
+        } catch (e) {}
         try { if (typeof _renderAutoSellBtn === 'function') _renderAutoSellBtn(); } catch (e) {}   // 🗑️ 還原「自動賣出」按鈕點亮/變暗狀態（player.autoSellOn）
         _uiConfigReady = true;   // 🛡️ 審計#1：config→DOM 還原完成，此後 saveGame 才可用 DOM 重建 config
 
