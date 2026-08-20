@@ -6,7 +6,18 @@
     function serverRate(key) {
         const config = typeof window.runtimeConfig === 'function' ? window.runtimeConfig() : {};
         const value = Number(config && config[key]);
-        return Number.isFinite(value) && value > 0 ? value : 1;
+        const base = Number.isFinite(value) && value > 0 ? value : 1;
+        const passKind = { exp_multiplier:'exp', gold_multiplier:'gold', drop_rate_multiplier:'drop' }[key];
+        return base * (passKind ? passMultiplier(passKind) : 1);
+    }
+    function passMultiplier(kind) {
+        if (kind === 'drop' && typeof window.sponsorDropMultiplier === 'function') {
+            return Math.max(1, Number(window.sponsorDropMultiplier()) || 1);
+        }
+        if (typeof window.sponsorGetMultiplier === 'function') {
+            return Math.max(1, Number(window.sponsorGetMultiplier(kind)) || 1);
+        }
+        return 1;
     }
     function passTags() {
         if (typeof window.sponsorPassHudStatus !== 'function') return '';
