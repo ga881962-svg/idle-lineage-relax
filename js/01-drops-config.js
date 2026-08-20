@@ -2427,11 +2427,19 @@ normalizeWeaponArmorScrollDropRates();
 // source tiers (ordinary / elite / boss) at 0.1% / 0.5% / 10% respectively.
 function normalizeCraftMaterialDropRates() {
     const tables = [MOB_DROPS, DARK_CRYSTAL_DROPS, DRAGON_DROPS, WARRIOR_DROPS, MEM_DROPS];
+    const sealedHistoryPages = new Set([
+        'mat_history_1', 'mat_history_2', 'mat_history_3', 'mat_history_4',
+        'mat_history_5', 'mat_history_6', 'mat_history_7', 'mat_history_8'
+    ]);
     for (const table of tables) {
         for (const drops of Object.values(table || {})) {
             for (const drop of drops || []) {
                 const id = drop && drop[0];
                 if (id === 'mat_black_powder' || id === 'mat_holy_relic') {
+                    drop[1] = 0.01;
+                    continue;
+                }
+                if (sealedHistoryPages.has(id)) {
                     drop[1] = 0.01;
                     continue;
                 }
