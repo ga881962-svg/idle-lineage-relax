@@ -1435,7 +1435,7 @@ function _renderMobsImpl() {
 //       存在怪物物件上·跨重建存活·播畢自動清除回待機。ticker 只改 img.src（已預載快取·不進 diff 字串
 //       →不觸發格子重建、不重播受擊動畫）。
 // 效能：8fps interval 掃描場上 ≤5 張卡；分頁背景(document.hidden)自動暫停；探測每怪一次（結果快取）。
-const MOB_ANIM_FPS = 8;            // 全域幀率（動作/秒）
+let MOB_ANIM_FPS = 8;              // 全域幀率（動作/秒；runtime.config 受限於 4～12）
 const MOB_ANIM_MAX_FRAMES = 60;    // 每動作幀數探測上限（v2.7.10 30→60：林德拜爾 death 35 幀被 30 截斷·探測逐號載到 404 即止→調高對短動畫零額外成本）
 // 🐉 v3.3.4 逐怪固定「往上」位移（px·整格 .mob-target translateY·連帶名稱/血條/影子/特效命中一起上移不脫節）：某些怪 spr 本體在畫布偏下→貼底渲染時出現位置太低，此表微調。頭目/一般皆套（疊在 v3.2 隨機散佈之上）。新增只加一行。
 const MOB_YLIFT = { '法利昂': 30 };   // 法利昂（水龍·本體在 375×247 畫布偏下）出現位置往上 30px
@@ -2576,7 +2576,20 @@ function _allySpritesApply() {   // 8fps ticker 驅動
         }
     });
 }
-setInterval(() => { if (!document.hidden && !(typeof catchupActive === 'function' && catchupActive())) { try { _mobAnimApply(); } catch (e) {} try { _updateFreezeFx(); } catch (e) {} try { _updateMobSkillFx(); } catch (e) {} try { _allySpritesApply(); } catch (e) {} try { _playerMorphApply(); } catch (e) {} } }, Math.floor(1000 / MOB_ANIM_FPS));
+let _mobAnimTimer = null;
+function _startMobAnimationTimer() {
+    if (_mobAnimTimer) clearInterval(_mobAnimTimer);
+    _mobAnimTimer = setInterval(() => { if (!document.hidden && !(typeof catchupActive === 'function' && catchupActive())) { try { _mobAnimApply(); } catch (e) {} try { _updateFreezeFx(); } catch (e) {} try { _updateMobSkillFx(); } catch (e) {} try { _allySpritesApply(); } catch (e) {} try { _playerMorphApply(); } catch (e) {} } }, Math.floor(1000 / MOB_ANIM_FPS));
+}
+_startMobAnimationTimer();
+window.addEventListener('idle-runtime-config', function (event) {
+    const next = Number(event && event.detail && event.detail.mob_animation_fps);
+    if (!Number.isFinite(next)) return;
+    const fps = Math.max(4, Math.min(12, Math.round(next)));
+    if (fps === MOB_ANIM_FPS) return;
+    MOB_ANIM_FPS = fps;
+    _startMobAnimationTimer();
+});
 
 // 🌙 v3.6.03 掛網記憶體釋放：切到背景的瞬間清空 #vfx-layer 全部特效元素＋冰凍/怪技能追蹤 dict。
 //    背景分頁的移除管線全數停擺（animationend 不觸發·WAAPI onfinish 暫停·setTimeout 節流至 1/分鐘），

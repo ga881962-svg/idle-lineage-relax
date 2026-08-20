@@ -21,7 +21,7 @@
     <title>放置天堂－休閒養老</title>
     <link rel="icon" type="image/png" href="https://storage.googleapis.com/idle-lineage-relax-assets-asia-2026/assets/favicon.png">   <!-- 🖼️ 瀏覽器分頁圖示(favicon)：把你的圖放到 assets/favicon.png 即生效；可改 href 路徑或副檔名(.ico/.svg) -->
 
-    <link rel="stylesheet" href="css/style.css?v=v3.9.19-monster-visual-scale">
+    <link rel="stylesheet" href="css/style.css?v=v3.9.22-runtime-config">
     <link rel="stylesheet" href="css/floating-ui.css?v=v3.5.100-audit-tail">
     <link rel="stylesheet" href="css/tailwind-built.css"><!-- 🔧 預編譯 Tailwind（取代執行期 JIT tailwind.js）：只含實際用到的 class，省 407KB runtime + 移除持續掃描 DOM 的成本。置於 style.css 之後以保留原 cascade（utility 平手時勝過自訂 class，與舊 JIT 注入順序一致） -->
 </head>
@@ -257,7 +257,7 @@
     <div class="flex items-center gap-3">
         <button onclick="revive()" id="btn-revive" class="hidden bg-red-800 hover:bg-red-700 px-6 py-1.5 text-white font-bold border border-red-500 rounded anim-flash text-base shadow-md">祈求復活</button>
         <button onclick="reviveInPlace()" id="btn-revive-inplace" class="hidden bg-yellow-700 hover:bg-yellow-600 px-6 py-1.5 text-white font-bold border border-yellow-500 rounded anim-flash text-base shadow-md">原地復活</button>
-        <button onclick="openPandoraShortcut()" id="btn-pandora-shortcut" class="bg-amber-950 hover:bg-amber-900 px-3 py-1 text-amber-200 font-bold border border-amber-700 rounded text-sm shadow-md whitespace-nowrap min-w-[3.25rem] text-center" title="與潘朵拉對話，開啟黑市">黑市</button>
+    <button onclick="openPandoraShortcut()" id="btn-pandora-shortcut" data-runtime-entry="black_market" class="bg-amber-950 hover:bg-amber-900 px-3 py-1 text-amber-200 font-bold border border-amber-700 rounded text-sm shadow-md whitespace-nowrap min-w-[3.25rem] text-center" title="與潘朵拉對話，開啟黑市">黑市</button>
         <button onclick="openMapDrops()" id="btn-map-drops" class="bg-slate-800 hover:bg-slate-700 px-3 py-1 text-slate-100 font-bold border border-slate-500 rounded text-sm shadow-md whitespace-nowrap min-w-[4.6rem] text-center" title="查看目前地圖所有怪物的掉落物品">📜 掉落一覽</button>
         <button onclick="playerTeleport()" id="btn-teleport" class="hidden bg-fuchsia-800 hover:bg-fuchsia-700 px-3 py-1 text-white font-bold border border-fuchsia-500 rounded text-sm shadow-md whitespace-nowrap min-w-[3.25rem] text-center" title="傳送術／瞬間移動卷軸（於對應地圖可進入隱藏狩獵區域）">瞬移</button>
         <button onclick="returnToTown()" id="btn-return-town" class="bg-emerald-800 hover:bg-emerald-700 px-3 py-1 text-white font-bold border border-emerald-500 rounded text-sm shadow-md whitespace-nowrap min-w-[3.25rem] text-center">回村</button>
@@ -382,7 +382,7 @@
                 <button id="btn-collection" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #4a2f0c 0%, #b3850e 28%, #3f2a0c 52%, #9a720c 76%, #2e2008 100%); color: #fde68a; border-color: #d4a017;" onclick="openCollectionPanel()">收藏</button>
                 <button id="btn-autosell" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #2e1065 0%, #6d28d9 28%, #1e1b4b 52%, #7c3aed 76%, #1e133f 100%); color: #ddd6fe; border-color: #8b5cf6;" onclick="openAutoSellRules()">自動販賣</button>
                 <!-- 第四排：排行榜 / 設定 -->
-                <button id="btn-pvp" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #565d68 0%, #6b7280 26%, #3f4651 48%, #5a6270 72%, #313740 100%); color: #f1f5f9; border-color: #6b7280; box-shadow: inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.22), 0 1px 2px rgba(0,0,0,.35);" onclick="switchTab('pvp', this)">排行榜</button>
+                <button id="btn-pvp" data-runtime-entry="leaderboard" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #565d68 0%, #6b7280 26%, #3f4651 48%, #5a6270 72%, #313740 100%); color: #f1f5f9; border-color: #6b7280; box-shadow: inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.22), 0 1px 2px rgba(0,0,0,.35);" onclick="switchTab('pvp', this)">排行榜</button>
                 <button id="btn-automation" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #0c4a5e 0%, #0e7490 28%, #0a3d4d 52%, #11657e 76%, #093440 100%); color: #a5f3fc; border-color: #0891b2;" onclick="openLeftAutomation()" title="設定（位於傭兵面板下方）">設定</button>
             </div>
 
@@ -625,6 +625,7 @@
     <script src="js/07-skills-cast.js?v=v3.8.26-flywing-relics"></script>
 <script src="js/08-items-equip.js?v=v3.9.07-item-use-runtime-refresh"></script>
 <script src="js/09-vfx-render.js?v=v3.8.79-hero-slash-motion"></script>
+<script src="js/43-runtime-config.js?v=v1-runtime-config"></script>
 <script src="js/10-ui-tabs.js?v=v3.9.21-item-modal-actions-refresh"></script>
 <script src="js/11-world-map.js?v=v3.9.20-windwood-return-rule"></script>
 <script src="js/12-npc-quests.js?v=v3.9.18-solo-siege-clan-tab-removed"></script>
@@ -661,7 +662,7 @@ window.refreshEquipmentWindow = function () {};
 <script src="js/36-offline-hunt.js?v=v3.8.94-offline-canonical-rollout"></script>
 <script src="js/37-profile-progress.js?v=2-direct-game-state"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/38-online-auth.js?v=v3.9.16-online-leaderboard"></script>
+  <script src="js/38-online-auth.js?v=v3.9.22-runtime-config"></script>
   <script src="js/40-online-world-chat.js?v=5-verified-broadcast"></script>
   <script src="js/41-player-exchange.js?v=v3.9.03-market-item-details"></script>
 <script>

@@ -241,6 +241,10 @@
                 cloudSync.sessionToken = data.sessionToken;
                 cloudSync.sessionUserId = user.id;
                 cloudSync.locked = false;
+                // Runtime visual/UI settings are non-authoritative client
+                // configuration.  A failed read intentionally preserves the
+                // compiled production defaults and never blocks login.
+                try { if (typeof window.runtimeConfigRefresh === 'function') await window.runtimeConfigRefresh(); } catch (_) {}
                 removeSessionOverlay();
                 // World chat is an ephemeral Broadcast channel. Connect only
                 // after this browser has a server-issued game session token.

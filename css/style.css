@@ -4143,6 +4143,16 @@ button.classic-skill-cell { cursor:pointer; }
   --pet-visual-height: 46px;
 }
 
+/* runtime.config supplies these as safe visual-only multipliers.  The values
+   below are exactly the former production dimensions. */
+#battle-view.area-fit {
+  --runtime-mob-front-scale: 1.3;
+  --runtime-mob-back-scale: 1.1;
+  --runtime-boss-scale: 1.78;
+  --runtime-mobile-mob-front-scale: .51;
+  --runtime-mobile-mob-back-scale: .42;
+  --runtime-player-scale: 1;
+}
 #battle-view.area-fit.has-bg {
   /* applyAreaBackground writes an inline `cover, cover, cover`; this must win
      over it while remaining limited to the hunting-map visual only. */
@@ -4249,6 +4259,7 @@ button.classic-skill-cell { cursor:pointer; }
   #game-screen[data-mobile-page="battle"] #battle-view.area-fit:not(.hidden) {
     min-height:clamp(280px,78vw,390px) !important;
   }
+
 }
 /* Server-authoritative offline hunting receipt. */
 .offline-hunt-settlement-modal{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;padding:20px;background:rgba(2,6,23,.82);backdrop-filter:blur(5px)}
@@ -4520,4 +4531,21 @@ button.classic-skill-cell { cursor:pointer; }
   #game-screen[data-mobile-page="bag"] #tab-armors { min-height:0 !important; overflow:hidden !important; }
   #game-screen[data-mobile-page="bag"] .classic-inventory-shell { min-height:0 !important; }
   #game-screen[data-mobile-page="bag"] .classic-inventory-viewport { overscroll-behavior:contain; }
+}
+
+/* runtime.config final visual overrides.  This is deliberately last so it
+   layers over responsive battle layout without changing its baseline values. */
+#battle-view.area-fit .mob-front:not(.boss-zoom) .mob-img-inner { transform:translateY(6px) scale(var(--runtime-mob-front-scale)) !important; }
+#battle-view.area-fit .mob-back:not(.boss-zoom) .mob-img-inner { transform:translateY(-24px) scale(var(--runtime-mob-back-scale)) !important; }
+#battle-view.area-fit .mob-target.boss-zoom .mob-img-inner { transform:scale(var(--runtime-boss-scale)) !important; }
+#battle-view.area-fit .mob-back.boss-zoom .mob-img-inner { transform:translateY(-24px) scale(var(--runtime-boss-scale)) !important; }
+#battle-view.area-fit #player-morph-sprite.player-static-guard,
+#battle-view.area-fit #player-morph-sprite.player-static-guard .pm-battle-hero-art {
+  width:var(--runtime-player-width, var(--player-visual-width)) !important;
+  height:var(--runtime-player-height, var(--player-visual-height)) !important;
+}
+@media (max-width:700px) {
+  #game-screen[data-mobile-page="battle"] #battle-view.area-fit .mob-target:not(.boss-slot):not(.boss-zoom) .mob-img-inner { transform:translateY(0) scale(var(--runtime-mobile-mob-default-scale)) !important; }
+  #game-screen[data-mobile-page="battle"] #battle-view.area-fit .mob-target.mob-front:not(.boss-slot):not(.boss-zoom) .mob-img-inner { transform:translateY(2px) scale(var(--runtime-mobile-mob-front-scale)) !important; }
+  #game-screen[data-mobile-page="battle"] #battle-view.area-fit .mob-target.mob-back:not(.boss-slot):not(.boss-zoom) .mob-img-inner { transform:translateY(-7px) scale(var(--runtime-mobile-mob-back-scale)) !important; }
 }
