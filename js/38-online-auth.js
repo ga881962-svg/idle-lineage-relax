@@ -284,6 +284,7 @@
         const panel = document.getElementById('gm-panel');
         if (toggle) toggle.style.display = allowed ? '' : 'none';
         if (!allowed && panel) panel.hidden = true;
+        try { if (typeof window.runtimeConfigAdminAccessChanged === 'function') window.runtimeConfigAdminAccessChanged(!!allowed); } catch (_) {}
     }
     async function refreshCloudGmAccess(user) {
         cloudGmRole = null;
@@ -687,6 +688,11 @@
         return data;
     };
     window.onlineCloudGmAllowed = function () { return !!cloudGmRole; };
+    window.onlineRuntimeConfigAdmin = async function (action, payload) {
+        if (!cloudGmRole) throw new Error('GM_REQUIRED');
+        if (action !== 'runtime.config.read' && action !== 'runtime.config.update') throw new Error('INVALID_RUNTIME_CONFIG_ACTION');
+        return await gameApi(Object.assign({ action:action }, payload || {}));
+    };
     window.onlineAuthSignOut = async function () {
         stopCloudActivity();
         if (typeof window.onlineWorldChatReset === 'function') window.onlineWorldChatReset();
