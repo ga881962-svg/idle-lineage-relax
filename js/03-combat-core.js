@@ -182,7 +182,6 @@ function _dpsCreditDot(src, amt) {   // DoT 依施加者標記歸因：'player'/
 function gameLoop() {
     if (_ffResumeTimer !== null && _tickDebt >= TICK_MS) return;   // 快速續跑已排程時，忽略一般 100ms 計時器插隊
     // 🛡️ 反盜用：非官方網域時橫幅若被移除則自動重掛（官方/本機為快取布林值判定，成本可忽略）
-    if (typeof _origEnforce === 'function') _origEnforce();
     let now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     if (_loopLast == null) {
         _loopLast = now;
