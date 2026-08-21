@@ -126,7 +126,9 @@ function applyAreaBackground() {
         else if (fbImg) { let _fb = upgradeAreaPath(fbImg); useSrc = _fb.indexOf('/') >= 0 ? _fb : `assets/background/${_fb}`; useFit = !AREA_BG_NOFIT.has(fbImg); }   // ⚔️ 預設 area-fit，僅舊 castle.png/Rift.png 例外；🖼️ fallback 圖亦經 upgradeAreaPath 升級 1920×1080(若有新圖)
         // 未登錄的隱藏地圖也必須有景；最後一層永遠是已驗證的本機場景圖。
         if (!useSrc) { useSrc = LOCAL_AREA_FALLBACK_BG; useFit = true; }
-        bv.style.backgroundImage = `${ov(.25)}, url("${useSrc}"), url("${LOCAL_AREA_FALLBACK_BG}")`;
+        // 直接寫入 CSS backgroundImage 不會經過 img src 的 resolver；必須先轉成正式 GCS URL。
+        let resolveAsset = (typeof assetUrl === 'function') ? assetUrl : function (path) { return path; };
+        bv.style.backgroundImage = `${ov(.25)}, url("${resolveAsset(useSrc)}"), url("${resolveAsset(LOCAL_AREA_FALLBACK_BG)}")`;
         bv.style.backgroundSize = useFit ? 'cover, cover, cover' : '';
         bv.classList.toggle('area-fit', useFit);
         bv.classList.add('has-bg');

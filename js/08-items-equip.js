@@ -1447,7 +1447,9 @@ function _updateUIImpl() {
 
     // 處理背景圖片：全部職業／性別頭像統一使用 assets/character 對應的 PNG。
     let bgImageName = player.avatar || clsDisplayName;
-    document.getElementById('status-panel').style.backgroundImage = `url('assets/character/safe/${encodeURIComponent(bgImageName + '.png').replace(/%/g, '_')}')`;
+    let bgImagePath = 'assets/character/safe/' + encodeURIComponent(bgImageName + '.png').replace(/%/g, '_');
+    let bgImageCss = (typeof assetCssUrl === 'function') ? assetCssUrl(bgImagePath) : `url('${bgImagePath}')`;
+    document.getElementById('status-panel').style.backgroundImage = bgImageCss;
     document.getElementById('status-panel').classList.add('bg-top'); // 確保圖片從頂部對齊
 
     document.getElementById('st-ac').innerText = player.d.ac;
