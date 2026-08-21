@@ -218,7 +218,12 @@
             window.__idleSessionFailure = 'CLIENT_OR_USER_UNAVAILABLE';
             return false;
         }
-        if (cloudSync.sessionUserId === user.id && cloudSync.sessionToken && !cloudSync.locked) return true;
+        // Always reconcile with session.open before a protected operation.
+        // A browser can retain an in-memory token after its server lease was
+        // replaced or expired; treating that token as valid strands the player
+        // at the roster because checkpoint.read is then correctly rejected.
+        // The server reuses the same-device active token, so this does not
+        // create a second session or kick this device.
         if (cloudSync.opening) return cloudSync.opening;
         window.__idleSessionOpening = true;
         cloudSync.opening = (async function () {
