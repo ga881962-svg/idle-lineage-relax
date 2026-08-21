@@ -66,7 +66,10 @@
         return { detail, rates };
     }
     function refresh() {
-        if (typeof player === 'undefined' || typeof getExpReq !== 'function') return;
+        // The profile card is also rendered on the signed-in roster screen,
+        // before a character has been loaded.  Keep that pre-character state
+        // inert instead of throwing every refresh interval.
+        if (typeof player === 'undefined' || !player || typeof getExpReq !== 'function') return;
         const rows = ensureRows();
         if (!rows) return;
         const need = Math.max(0, Number(getExpReq(player.lv)) || 0);
