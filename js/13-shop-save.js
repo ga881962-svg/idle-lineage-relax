@@ -7,7 +7,13 @@ const ELF_ELE = {
 };
 const ELF_SWITCH_COST = 500000;
 // 將中文場景名稱轉成安全的 ASCII 檔名，避免本機伺服器的 URL 編碼問題。
-function encodedAreaBg(name) { return 'assets/area/1920x1080/maps/' + encodeURIComponent(name).replace(/%/g, '_') + '.jpg'; }
+function encodedAreaBg(name) {
+    const path = 'assets/area/1920x1080/maps/' + encodeURIComponent(name).replace(/%/g, '_') + '.jpg';
+    // Some town/siege views assign this value directly to a CSS background
+    // instead of passing through applyAreaBackground(). Resolve it here so
+    // every 1920x1080 area image uses the production GCS asset origin.
+    return (typeof assetUrl === 'function') ? assetUrl(path) : path;
+}
 // 離線版所有戰鬥地圖的最後保險：任何特殊副本漏設背景或單一圖檔讀取失敗時，
 // 仍顯示本機場景，不會退成黑底。
 const LOCAL_AREA_FALLBACK_BG = encodedAreaBg('村莊周邊');
