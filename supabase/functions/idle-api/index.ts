@@ -180,7 +180,7 @@ Deno.serve(async (request) => {
     return error ? reply({ error: "CHARACTER_CREATE_FAILED" }, 500) : reply({ character: data }, 201);
   }
 
-  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","character.rename","leaderboard.online","sponsor.pass.status","sponsor.pass.purchase","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
+  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","character.rename","leaderboard.online","sponsor.pass.status","sponsor.pass.purchase","offline.pass.purchase","offline.status","offline.arm","offline.disarm","offline.settle","offline.ack","offline.return.check","offline.return","map.entry","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
   if (protectedActions.has(String(input.action))) { const denied = await requireSession(); if (denied) return denied; }
   if (input.action === "gm.status") { const role = await getRole(); return reply({ allowed: !!role, role: role || "player" }); }
 
@@ -242,6 +242,53 @@ Deno.serve(async (request) => {
       }
       return reply(isRecord(data) ? data : {});
     }
+  }
+
+  // Offline hunting and map return are RPC-only. No reward, duration, map
+  // eligibility or expiry input is accepted from the browser.
+  if (String(input.action).startsWith("offline.") || input.action === "map.entry") {
+    const character = await ownCharacter(input.characterId);
+    if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
+    const rpc = async (name: string, args: Record<string, unknown>) => {
+      const { data, error } = await auth.rpc(name, args);
+      if (!error) {
+        const result = isRecord(data) ? data : {};
+        if (result.rejected === true && result.error === "OFFLINE_SNAPSHOT_REJECTED") return reply(result, 409);
+        return reply(result);
+      }
+      const detail = `${error.message || ""} ${error.details || ""}`;
+      const known = ["CHECKPOINT_CONFLICT","OFFLINE_PASS_REQUIRED","OFFLINE_CATALOG_CHANGED","OFFLINE_SNAPSHOT_REJECTED","MAP_UNAVAILABLE","MISSING_KEY","MISSING_SCROLL","SHIP_REQUIRED","LEVEL_REQUIRED","QUEST_REQUIRED","PASS_REQUIRED","PVP_RETURN_DISABLED","REQUEST_ID_PAYLOAD_MISMATCH","INSUFFICIENT_SPONSOR_DIAMONDS","SESSION_REPLACED"];
+      const errorCode = known.find((code) => detail.includes(code)) || "OFFLINE_ACTION_FAILED";
+      return reply({ error: errorCode, detail }, errorCode === "CHECKPOINT_CONFLICT" || errorCode === "REQUEST_ID_PAYLOAD_MISMATCH" ? 409 : 400);
+    };
+    const token = String(input.sessionToken || "");
+    if (input.action === "offline.pass.purchase") {
+      if (!uuid(input.requestId)) return reply({ error: "INVALID_OFFLINE_PASS_PURCHASE" }, 400);
+      return rpc("offline_pass_purchase", { p_session_token: token, p_character_id: character.id, p_request_id: String(input.requestId) });
+    }
+    if (input.action === "offline.status") return rpc("offline_hunt_status", { p_session_token: token, p_character_id: character.id });
+    if (input.action === "offline.arm") {
+      if (!uuid(input.requestId) || !String(input.mapId || "")) return reply({ error: "INVALID_OFFLINE_ARM" }, 400);
+      if (!isRecord(input.recentRate)) return reply({ error: "INVALID_OFFLINE_RATE" }, 400);
+      return rpc("offline_hunt_arm", { p_session_token: token, p_character_id: character.id, p_map_id: String(input.mapId), p_recent_rate: input.recentRate, p_request_id: String(input.requestId) });
+    }
+    if (input.action === "offline.disarm") return rpc("offline_hunt_disarm", { p_session_token: token, p_character_id: character.id, p_reason: String(input.reason || "not_in_combat") });
+    if (input.action === "offline.settle") {
+      if (!uuid(input.requestId)) return reply({ error: "INVALID_SETTLEMENT_REQUEST" }, 400);
+      return rpc("offline_hunt_settle", { p_session_token: token, p_character_id: character.id, p_request_id: String(input.requestId) });
+    }
+    if (input.action === "offline.ack") {
+      if (!uuid(input.settlementId)) return reply({ error: "INVALID_SETTLEMENT_ACK" }, 400);
+      return rpc("offline_hunt_ack", { p_session_token: token, p_character_id: character.id, p_settlement_id: String(input.settlementId) });
+    }
+    if (input.action === "offline.return.check") return rpc("offline_hunt_return_check", { p_session_token: token, p_character_id: character.id });
+    if (input.action === "offline.return" || input.action === "map.entry") {
+      const mapId = String(input.mapId || "");
+      const context = input.action === "offline.return" ? "offline_return" : String(input.context || "normal_enter");
+      if (!mapId || !uuid(input.requestId) || int(input.revision, -1) < 0) return reply({ error: "INVALID_MAP_ENTRY" }, 400);
+      return rpc("map_entry_validate_and_apply", { p_session_token: token, p_character_id: character.id, p_map_id: mapId, p_context: context, p_request_id: String(input.requestId), p_expected_revision: int(input.revision) });
+    }
+    return reply({ error: "OFFLINE_ACTION_NOT_AVAILABLE" }, 400);
   }
 
   if (input.action === "checkpoint.read") {
