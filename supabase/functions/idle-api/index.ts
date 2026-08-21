@@ -105,15 +105,37 @@ Deno.serve(async (request) => {
 
   if (input.action === "session.open") {
     if (!uuid(input.deviceId)) return reply({ error: "INVALID_DEVICE" }, 400);
-    // Do not limit a household/network to one account.  Exclusivity is per
-    // authenticated account only: this upsert atomically replaces only this
-    // user's game token and never blocks a different account on the same IP.
+    const deviceId = String(input.deviceId);
+    // Do not limit a household/network to one account. Exclusivity is per
+    // authenticated account only. A repeated open from the same browser device
+    // must retain its still-valid token, otherwise a late heartbeat from the
+    // previous page lifecycle would incorrectly kick that same device out.
     const ipHash = null;
-    const sessionToken = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-    // Upsert replaces the prior token atomically: the new device is immediately
-    // the only valid game session for this account.
-    const { error } = await admin.from("game_account_sessions").upsert({ user_id: user.id, session_token: sessionToken, device_id: String(input.deviceId), ip_hash: ipHash, issued_at: nowIso, last_seen_at: nowIso, expires_at: expiresAt, invalidated_at: null, active_character_id: null }, { onConflict: "user_id" });
+    const { data: existing, error: existingError } = await admin.from("game_account_sessions")
+      .select("session_token")
+      .eq("user_id", user.id)
+      .eq("device_id", deviceId)
+      .is("invalidated_at", null)
+      .gt("expires_at", nowIso)
+      .maybeSingle();
+    if (existingError) return reply({ error: "SESSION_OPEN_FAILED" }, 500);
+    if (existing?.session_token) {
+      const { data: refreshed, error: refreshError } = await admin.from("game_account_sessions")
+        .update({ last_seen_at: nowIso, expires_at: expiresAt })
+        .eq("user_id", user.id)
+        .eq("device_id", deviceId)
+        .eq("session_token", existing.session_token)
+        .is("invalidated_at", null)
+        .select("session_token")
+        .maybeSingle();
+      if (refreshError || !refreshed?.session_token) return reply({ error: "SESSION_OPEN_FAILED" }, 500);
+      return reply({ sessionToken: refreshed.session_token, expiresInSeconds: 900, reused: true });
+    }
+    // A different device (or an expired/invalidated old session) takes over
+    // this account's single active session.
+    const sessionToken = crypto.randomUUID();
+    const { error } = await admin.from("game_account_sessions").upsert({ user_id: user.id, session_token: sessionToken, device_id: deviceId, ip_hash: ipHash, issued_at: nowIso, last_seen_at: nowIso, expires_at: expiresAt, invalidated_at: null }, { onConflict: "user_id" });
     return error ? reply({ error: "SESSION_OPEN_FAILED" }, 500) : reply({ sessionToken, expiresInSeconds: 900 });
   }
   if (input.action === "session.heartbeat") return (await sessionOk()) ? reply({ ok: true }) : reply({ error: "SESSION_REPLACED" }, 409);
