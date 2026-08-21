@@ -93,16 +93,6 @@ Deno.serve(async (request) => {
   };
   const getCheckpoint = async (characterId: string) =>
     await admin.from("character_checkpoints").select("revision,state,saved_at").eq("character_id", characterId).maybeSingle();
-  const bindActiveCharacter = async (characterId: string) => {
-    const { error } = await admin.from("game_account_sessions")
-      .update({ active_character_id: characterId })
-      .eq("user_id", user.id)
-      .eq("session_token", String(input.sessionToken || ""))
-      .is("invalidated_at", null)
-      .gt("expires_at", nowIso);
-    return !error;
-  };
-
   if (input.action === "session.open") {
     if (!uuid(input.deviceId)) return reply({ error: "INVALID_DEVICE" }, 400);
     const deviceId = String(input.deviceId);
@@ -209,7 +199,6 @@ Deno.serve(async (request) => {
   if (input.action === "leaderboard.online") {
     const character = await ownCharacter(input.characterId);
     if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
-    if (!(await bindActiveCharacter(character.id))) return reply({ error: "LEADERBOARD_SESSION_BIND_FAILED" }, 500);
     const { data, error } = await auth.rpc("online_leaderboard", { p_session_token: String(input.sessionToken) });
     return error ? reply({ error: "LEADERBOARD_READ_FAILED" }, 500) : reply(isRecord(data) ? data : {});
   }
@@ -293,7 +282,6 @@ Deno.serve(async (request) => {
 
   if (input.action === "checkpoint.read") {
     const character = await ownCharacter(input.characterId); if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
-    if (!(await bindActiveCharacter(character.id))) return reply({ error: "SESSION_CHARACTER_BIND_FAILED" }, 500);
     const { data, error } = await getCheckpoint(character.id);
     return error ? reply({ error: "CHECKPOINT_READ_FAILED" }, 500) : reply({ checkpoint: data || null });
   }
@@ -301,7 +289,6 @@ Deno.serve(async (request) => {
     const character = await ownCharacter(input.characterId);
     const givenRevision = int(input.revision, -1);
     if (!character || givenRevision < 0 || !uuid(input.requestId) || !isRecord(input.state)) return reply({ error: "INVALID_CHECKPOINT" }, 400);
-    if (!(await bindActiveCharacter(character.id))) return reply({ error: "SESSION_CHARACTER_BIND_FAILED" }, 500);
     const state = jsonClone(input.state); const p = isRecord(state.p) ? state.p : null;
     if (p && duplicateUids(p.inv)) return reply({ error: "DUPLICATE_ITEM_UID" }, 409);
     const bytes = JSON.stringify(state).length;
