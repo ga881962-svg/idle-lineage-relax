@@ -1446,10 +1446,17 @@ function _updateUIImpl() {
     }
 
     // 處理背景圖片：全部職業／性別頭像統一使用 assets/character 對應的 PNG。
-    let bgImageName = player.avatar || clsDisplayName;
-    let bgImagePath = 'assets/character/safe/' + encodeURIComponent(bgImageName + '.png').replace(/%/g, '_');
-    let bgImageCss = (typeof assetCssUrl === 'function') ? assetCssUrl(bgImagePath) : `url('${bgImagePath}')`;
-    document.getElementById('status-panel').style.backgroundImage = bgImageCss;
+    let bgImageName = String(player.avatar || clsDisplayName || '').trim();
+    let statusPanel = document.getElementById('status-panel');
+    // Before the character is restored there is no class/avatar. Avoid the invalid
+    // `assets/character/safe/.png` request on every HUD render in that state.
+    if (bgImageName) {
+        let bgImagePath = 'assets/character/safe/' + encodeURIComponent(bgImageName + '.png').replace(/%/g, '_');
+        let bgImageCss = (typeof assetCssUrl === 'function') ? assetCssUrl(bgImagePath) : `url('${bgImagePath}')`;
+        statusPanel.style.backgroundImage = bgImageCss;
+    } else {
+        statusPanel.style.backgroundImage = '';
+    }
     document.getElementById('status-panel').classList.add('bg-top'); // 確保圖片從頂部對齊
 
     document.getElementById('st-ac').innerText = player.d.ac;

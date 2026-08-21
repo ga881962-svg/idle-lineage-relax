@@ -326,7 +326,10 @@
             cloudSync.warned = false;
             if (!cloudSync.ready && typeof logSys === 'function') {
                 cloudSync.ready = true;
-                if (typeof window.onlineCloudWarehouseBootstrap === 'function') window.onlineCloudWarehouseBootstrap().catch(function () {});
+                // Warehouse server authority is intentionally disabled in
+                // production. Do not issue a status RPC until that feature is
+                // explicitly enabled; the local warehouse remains active.
+                if (window.__serverWarehouseAuthoritative === true && typeof window.onlineCloudWarehouseBootstrap === 'function') window.onlineCloudWarehouseBootstrap().catch(function () {});
                 logSys('<span class="text-cyan-300">☁ 雲端進度同步已啟用。</span>');
             }
         } catch (error) {

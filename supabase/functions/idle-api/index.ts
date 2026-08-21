@@ -18,6 +18,35 @@ const int = (value: unknown, fallback = 0) => {
 };
 const uuid = (value: unknown) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value ?? ""));
 const jsonClone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+const runtimeNumber = (value: unknown, fallback: number, min: number, max: number) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= min && number <= max ? number : fallback;
+};
+const runtimeConfig = (value: unknown, strict = false) => {
+  if (strict && !isRecord(value)) return null;
+  const input = isRecord(value) ? value : {};
+  const visibility = isRecord(input.ui_entry_visibility) ? input.ui_entry_visibility : {};
+  const allowedKeys = ["monster_scale", "boss_scale", "player_scale", "mob_animation_fps", "ui_entry_visibility"];
+  if (strict && (!isRecord(input.ui_entry_visibility) || Object.keys(input).some((key) => !allowedKeys.includes(key)))) return null;
+  if (Object.keys(visibility).some((key) => !["black_market", "leaderboard"].includes(key) || typeof visibility[key] !== "boolean")) return null;
+  const monster = Number(input.monster_scale), boss = Number(input.boss_scale), player = Number(input.player_scale), fps = Number(input.mob_animation_fps);
+  if (strict && (!Number.isFinite(monster) || monster < .5 || monster > 2 || !Number.isFinite(boss) || boss < .5 || boss > 2 || !Number.isFinite(player) || player < .7 || player > 1.4 || !Number.isFinite(fps) || fps < 4 || fps > 12 || Math.round(fps) !== fps)) return null;
+  return {
+    monster_scale: runtimeNumber(input.monster_scale, 1, .5, 2),
+    boss_scale: runtimeNumber(input.boss_scale, 1, .5, 2),
+    player_scale: runtimeNumber(input.player_scale, 1, .7, 1.4),
+    mob_animation_fps: Math.round(runtimeNumber(input.mob_animation_fps, 8, 4, 12)),
+    ui_entry_visibility: {
+      black_market: typeof visibility.black_market === "boolean" ? visibility.black_market : true,
+      leaderboard: typeof visibility.leaderboard === "boolean" ? visibility.leaderboard : true,
+    },
+  };
+};
+const sha256 = async (value: unknown) => {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(hash)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+};
 
 function nameOf(value: unknown) {
   const name = String(value ?? "").trim();
@@ -140,7 +169,7 @@ Deno.serve(async (request) => {
     return reply({ ok: true });
   }
 
-  if (["characters.list", "characters.create"].includes(String(input.action))) {
+  if (["characters.list", "characters.create", "characters.allies"].includes(String(input.action))) {
     const denied = await requireSession(); if (denied) return denied;
   }
   if (input.action === "characters.list") {
@@ -160,6 +189,39 @@ Deno.serve(async (request) => {
       return { ...character, level: savedLevel > 0 ? savedLevel : character.level };
     }) });
   }
+  // The active party rebuild uses the caller account's existing checkpoint
+  // snapshots only. This is a read path; it neither creates nor changes a
+  // character save.
+  if (input.action === "characters.allies") {
+    const current = await ownCharacter(input.characterId);
+    if (!current) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
+    const { data: characters, error } = await admin
+      .from("player_characters")
+      .select("id,slot,name,class_id,level,state,updated_at")
+      .eq("user_id", user.id)
+      .order("slot", { ascending: true });
+    if (error) return reply({ error: "ALLY_LIST_FAILED" }, 500);
+    const rows = characters || [];
+    const ids = rows.map((character) => character.id);
+    const { data: checkpoints, error: checkpointError } = ids.length
+      ? await admin.from("character_checkpoints").select("character_id,revision,state,saved_at").in("character_id", ids)
+      : { data: [], error: null };
+    if (checkpointError) return reply({ error: "ALLY_CHECKPOINT_FAILED" }, 500);
+    const byCharacter = new Map((checkpoints || []).map((checkpoint) => [checkpoint.character_id, checkpoint]));
+    return reply({ characters: rows.map((character) => {
+      const checkpoint = byCharacter.get(character.id);
+      return {
+        id: character.id,
+        slot: character.slot,
+        name: character.name,
+        class_id: character.class_id,
+        level: character.level,
+        revision: checkpoint?.revision ?? null,
+        saved_at: checkpoint?.saved_at ?? null,
+        state: isRecord(checkpoint?.state) ? checkpoint.state : (isRecord(character.state) ? character.state : null),
+      };
+    }) });
+  }
   if (input.action === "characters.create") {
     const slot = int(input.slot, -1); const name = nameOf(input.name); const classId = String(input.classId || "");
     const classes = new Set(["prince","knight","elf","wizard","darkelf","dragonknight","illusionist","warrior"]);
@@ -170,9 +232,30 @@ Deno.serve(async (request) => {
     return error ? reply({ error: "CHARACTER_CREATE_FAILED" }, 500) : reply({ character: data }, 201);
   }
 
-  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","character.rename","leaderboard.online","sponsor.pass.status","sponsor.pass.purchase","offline.pass.purchase","offline.status","offline.arm","offline.disarm","offline.settle","offline.ack","offline.return.check","offline.return","map.entry","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
+  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","character.rename","leaderboard.online","runtime.config.read","runtime.config.update","sponsor.pass.status","sponsor.pass.purchase","offline.pass.purchase","offline.status","offline.arm","offline.disarm","offline.settle","offline.ack","offline.return.check","offline.return","map.entry","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
   if (protectedActions.has(String(input.action))) { const denied = await requireSession(); if (denied) return denied; }
   if (input.action === "gm.status") { const role = await getRole(); return reply({ allowed: !!role, role: role || "player" }); }
+
+  if (input.action === "runtime.config.read") {
+    const { data, error } = await admin.from("server_rule_catalogs")
+      .select("version,payload,generated_at").eq("catalog_key", "runtime.config").maybeSingle();
+    if (error) return reply({ config: {}, version: 0, fallback: true });
+    return reply({ config: isRecord(data?.payload) ? data.payload : {}, version: int(data?.version, 0), generatedAt: data?.generated_at || null });
+  }
+  if (input.action === "runtime.config.update") {
+    if (!(await getRole())) return reply({ error: "GM_REQUIRED" }, 403);
+    const config = runtimeConfig(input.config, true);
+    const expectedVersion = int(input.version, -1);
+    if (!config || expectedVersion < 1) return reply({ error: "INVALID_RUNTIME_CONFIG" }, 400);
+    const payloadHash = await sha256(config);
+    const { data, error } = await admin.from("server_rule_catalogs")
+      .update({ version: expectedVersion + 1, source_hash: payloadHash, payload_hash: payloadHash, payload: config, generated_at: nowIso })
+      .eq("catalog_key", "runtime.config").eq("version", expectedVersion)
+      .select("version,payload,generated_at").maybeSingle();
+    if (error) return reply({ error: "RUNTIME_CONFIG_UPDATE_FAILED" }, 500);
+    if (!data) return reply({ error: "RUNTIME_CONFIG_STALE" }, 409);
+    return reply({ config: data.payload, version: data.version, generatedAt: data.generated_at });
+  }
 
   if (input.action === "character.rename") {
     const character = await ownCharacter(input.characterId);

@@ -10,7 +10,7 @@
   "theme_color": "#0b1628",
   "orientation": "landscape",
   "icons": [
-    { "src": "assets/favicon.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "favicon.ico", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "public/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
 }

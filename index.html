@@ -11,9 +11,11 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="manifest" href="manifest.webmanifest?v=3">
+    <link rel="manifest" href="manifest.webmanifest?v=4-console-audit">
     <link rel="apple-touch-icon" href="public/app-icon.svg">
     <script src="js/asset-resolver.js?v=2"></script>
+    <link rel="icon" href="favicon.ico" type="image/svg+xml">
+    <link rel="shortcut icon" href="favicon.ico" type="image/svg+xml">
     <!-- 🗑️ v3.5.87 移除死的行動裝置偵測 IIFE：applyViewport 無任何分支（mobile 變數算了沒用）、
          DESIGN_W/isMobileDevice/window.__mobileScaling 全專案零呼叫；唯一實際效果 viewport-fit=cover 直接併入上方 meta。
          （width=1180 手機縮放已於桌機專注決策時移除·本作 desktop-only） -->
@@ -619,7 +621,7 @@
 <script src="js/34-map-drop-browser.js?v=v3.8.54-boss-panacea-unified"></script>
 <script src="js/06-status-allies.js?v=v3.9.13-mercenary-guild-closed"></script>
     <script src="js/07-skills-cast.js?v=v3.8.26-flywing-relics"></script>
-<script src="js/08-items-equip.js?v=v3.9.36-gcs-background-assets"></script>
+<script src="js/08-items-equip.js?v=v3.9.37-console-audit"></script>
 <script src="js/09-vfx-render.js?v=v3.8.79-hero-slash-motion"></script>
 <script src="js/43-runtime-config.js?v=v1.1-rate-status-summary"></script>
 <script src="js/10-ui-tabs.js?v=v3.9.22-item-description-reliability"></script>
@@ -658,7 +660,7 @@ window.refreshEquipmentWindow = function () {};
 <script src="js/36-offline-hunt.js?v=v3.8.97-offline-death-return"></script>
 <script src="js/37-profile-progress.js?v=v3.9.33-profile-null-guard"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/38-online-auth.js?v=v3.9.34-session-lease-reconcile"></script>
+  <script src="js/38-online-auth.js?v=v3.9.37-console-audit"></script>
   <script src="js/44-runtime-config-admin.js?v=v1-runtime-config-admin"></script>
   <script src="js/40-online-world-chat.js?v=5-verified-broadcast"></script>
   <script src="js/41-player-exchange.js?v=v3.9.03-market-item-details"></script>
