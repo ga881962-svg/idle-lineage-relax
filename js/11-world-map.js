@@ -1518,7 +1518,7 @@ function renderHanNPC(div) {
             <div></div><div class="h-full">${btn(byPos.top)}</div><div></div>
             <div class="h-full">${btn(byPos.left)}</div>
             <div class="flex items-center justify-center bg-slate-900/80 border-2 border-amber-600/70 rounded shadow-[0_0_18px_rgba(245,158,11,0.35)] h-full">
-                <img src="${md.logo}" class="w-3/5 h-3/5 object-contain" onerror="this.outerHTML='<span class=\\'text-4xl\\'>🏅</span>'">
+                <img src="${typeof assetUrl === 'function' ? assetUrl(md.logo) : md.logo}" class="w-3/5 h-3/5 object-contain" onerror="this.outerHTML='<span class=\\'text-4xl\\'>🏅</span>'">
             </div>
             <div class="h-full">${btn(byPos.right)}</div>
             <div></div><div class="h-full">${btn(byPos.bottom)}</div><div></div>

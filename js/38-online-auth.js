@@ -9,7 +9,8 @@
     let client = null;
     let activeUser = null;
     let cloudGmRole = null;
-    const cloudSync = { characterId:null, revision:0, timer:null, retryTimer:null, inFlight:false, warned:false, ready:false, sessionToken:null, sessionUserId:null, heartbeat:null, opening:null, locked:false, kicking:false };
+    const cloudSync = { characterId:null, revision:0, timer:null, retryTimer:null, inFlight:false, warned:false, ready:false, sessionToken:null, sessionUserId:null, heartbeat:null, opening:null, locked:false, kicking:false, lastCheckpointSavedAt:0 };
+    const CHECKPOINT_MIN_INTERVAL_MS = 2600;
     const DEVICE_STORAGE_KEY = 'idle_lineage_device_id_v1';
 
     function newUuid() {
@@ -315,11 +316,17 @@
     async function syncCloudSave() {
         if (cloudSync.locked || !cloudSync.sessionToken || !cloudSync.characterId || cloudSync.inFlight || typeof player === 'undefined' || !player || !player.cls || player.cloudCharacterId !== cloudSync.characterId) return;
         if (typeof saveStateJson !== 'function') return;
+        const waitForCheckpoint = CHECKPOINT_MIN_INTERVAL_MS - (Date.now() - Number(cloudSync.lastCheckpointSavedAt || 0));
+        if (waitForCheckpoint > 0) {
+            queueCloudSave(waitForCheckpoint + 50);
+            return;
+        }
         cloudSync.inFlight = true;
         try {
             const state = JSON.parse(saveStateJson());
             const data = await gameApi({ action:'checkpoint.write', characterId:cloudSync.characterId, revision:cloudSync.revision, requestId:newUuid(), state:state });
             cloudSync.revision = Number(data.revision || cloudSync.revision);
+            cloudSync.lastCheckpointSavedAt = Date.now();
             // Refresh the server-owned offline departure only after the
             // checkpoint commit succeeds. This prevents normal online play
             // time from being included in the later offline settlement.
@@ -391,6 +398,7 @@
         if (!checkpoint.state.p || !checkpoint.state.ms || typeof _lzSet !== 'function' || typeof _saveWrap !== 'function') return null;
         if (!_lzSet('lineage_idle_save_' + localSlot, _saveWrap(JSON.stringify(checkpoint.state)))) return null;
         cloudSync.revision = Number(checkpoint.revision || 0);
+        cloudSync.lastCheckpointSavedAt = Date.parse(String(checkpoint.saved_at || '')) || 0;
         return true;
     }
     async function restoreCurrentCloudCheckpoint() {
