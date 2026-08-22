@@ -247,10 +247,11 @@ function _castleOwnerCacheReady() {
 }
 function _castleOwnerApply(city) {
     city = SIEGE_CITY[city] ? city : null;
-    // 🏰 v3.7.96 城堡歸屬變動 → 護衛實體立即失效（名冊由 castleGuardRosterActive 動態驗證·此處只清戰場暫存）
+    // Owner resolution must not call the guard roster resolver: older guard
+    // builds can ask for the owner again while applying this change.  This is
+    // only transient visual state, so compare the already-resolved city.
     if (typeof player !== 'undefined' && player && player.guardsV2 && player.guardsV2.length) {
-        let r = (typeof castleGuardRosterActive === 'function') ? castleGuardRosterActive() : null;
-        if (!r || r.city !== city) player.guardsV2 = [];
+        if (!city || player.guardsV2.some(g => !g || g.city !== city)) player.guardsV2 = [];
     }
     return city;
 }
