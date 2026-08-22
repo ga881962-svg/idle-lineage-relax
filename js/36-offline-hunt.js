@@ -163,6 +163,15 @@
             if (result && result.armed) lastArmedMap = mapId;
             return !!(result && result.armed);
         } catch (error) {
+            if (/SESSION_REPLACED|SESSION_REQUIRED|INVALID_SESSION|SESSION_EXPIRED/i.test(String(error && (error.message || error)))) {
+                // The authenticated gateway owns the only session token. Once
+                // it says that token is no longer current, stop this departure
+                // chain and hand off to the existing Session v19 failure path.
+                if (typeof window.onlineCloudHandleSessionFailure === 'function') {
+                    await window.onlineCloudHandleSessionFailure(error);
+                }
+                return false;
+            }
             if (/OFFLINE_SNAPSHOT_REJECTED/i.test(String(error && (error.message || error)))) {
                 // The server has persisted the anomaly and invalidated this
                 // session.  Do not retry the submitted rate or arm locally.

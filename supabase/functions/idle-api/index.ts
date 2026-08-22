@@ -125,37 +125,15 @@ Deno.serve(async (request) => {
   if (input.action === "session.open") {
     if (!uuid(input.deviceId)) return reply({ error: "INVALID_DEVICE" }, 400);
     const deviceId = String(input.deviceId);
-    // Do not limit a household/network to one account. Exclusivity is per
-    // authenticated account only. A repeated open from the same browser device
-    // must retain its still-valid token, otherwise a late heartbeat from the
-    // previous page lifecycle would incorrectly kick that same device out.
     const ipHash = null;
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-    const { data: existing, error: existingError } = await admin.from("game_account_sessions")
-      .select("session_token")
-      .eq("user_id", user.id)
-      .eq("device_id", deviceId)
-      .is("invalidated_at", null)
-      .gt("expires_at", nowIso)
-      .maybeSingle();
-    if (existingError) return reply({ error: "SESSION_OPEN_FAILED" }, 500);
-    if (existing?.session_token) {
-      const { data: refreshed, error: refreshError } = await admin.from("game_account_sessions")
-        .update({ last_seen_at: nowIso, expires_at: expiresAt })
-        .eq("user_id", user.id)
-        .eq("device_id", deviceId)
-        .eq("session_token", existing.session_token)
-        .is("invalidated_at", null)
-        .select("session_token")
-        .maybeSingle();
-      if (refreshError || !refreshed?.session_token) return reply({ error: "SESSION_OPEN_FAILED" }, 500);
-      return reply({ sessionToken: refreshed.session_token, expiresInSeconds: 900, reused: true });
-    }
-    // A different device (or an expired/invalidated old session) takes over
-    // this account's single active session.
     const sessionToken = crypto.randomUUID();
-    const { error } = await admin.from("game_account_sessions").upsert({ user_id: user.id, session_token: sessionToken, device_id: deviceId, ip_hash: ipHash, issued_at: nowIso, last_seen_at: nowIso, expires_at: expiresAt, invalidated_at: null }, { onConflict: "user_id" });
-    return error ? reply({ error: "SESSION_OPEN_FAILED" }, 500) : reply({ sessionToken, expiresInSeconds: 900 });
+    // Atomic DB upsert: concurrent opens from this same device retain one
+    // token; a different device still replaces the account's active token.
+    const { data, error } = await auth.rpc("open_game_account_session", {
+      p_device_id: deviceId, p_session_token: sessionToken, p_ip_hash: ipHash,
+    });
+    if (error || !isRecord(data) || !uuid(data.sessionToken)) return reply({ error: "SESSION_OPEN_FAILED" }, 500);
+    return reply({ sessionToken: String(data.sessionToken), expiresInSeconds: 900, reused: data.reused === true });
   }
   if (input.action === "session.heartbeat") return (await sessionOk()) ? reply({ ok: true }) : reply({ error: "SESSION_REPLACED" }, 409);
   if (input.action === "session.close") {

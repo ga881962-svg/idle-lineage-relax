@@ -213,6 +213,9 @@
         message('線上工作階段已中止：' + code, 'error');
         cloudSync.kicking = false;
     }
+    // Feature modules use this only to hand a server-confirmed session failure
+    // back to the single Session v19 owner; they never cache or replace tokens.
+    window.onlineCloudHandleSessionFailure = sessionKicked;
     async function openGameSession(user) {
         if (!user || !client) {
             window.__idleSessionFailure = 'CLIENT_OR_USER_UNAVAILABLE';
