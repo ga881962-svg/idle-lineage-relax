@@ -610,6 +610,7 @@
                 // Server settlement is intentionally after loadGame: it can
                 // replace the local checkpoint with one authoritative result.
                 if (typeof window.offlineHuntResolve === 'function') await window.offlineHuntResolve();
+                if (typeof window.onlineCloudCastleStatus === 'function') await window.onlineCloudCastleStatus();
                 return;
             }
             curCreate.rawCls = rawCls;
@@ -624,6 +625,7 @@
                 if (typeof saveGame === 'function') saveGame();
             }
             if (typeof window.offlineHuntResolve === 'function') await window.offlineHuntResolve();
+            if (typeof window.onlineCloudCastleStatus === 'function') await window.onlineCloudCastleStatus();
         } catch (error) {
             message('進入遊戲失敗：' + (error.message || '請重新整理後再試。'), 'error');
         }
@@ -736,6 +738,30 @@
     window.onlineCloudLeaderboard = async function () {
         if (!cloudSync.ready || !cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
         return await gameApi({ action:'leaderboard.online', characterId:cloudSync.characterId });
+    };
+    function applyCastleResult(result) {
+        if (typeof player === 'undefined' || !player || !result) return result;
+        if (result.active === true && ['kent','windwood','heine'].includes(String(result.city || ''))) {
+            player.siegeCastle = String(result.city);
+            player.siegeCastleExpiresAt = Date.parse(String(result.expiresAt || '')) || 0;
+        } else {
+            delete player.siegeCastle;
+            delete player.siegeCastleExpiresAt;
+            delete player.castleGuards;
+            player.guardsV2 = [];
+        }
+        if (Number.isFinite(Number(result.revision))) cloudSync.revision = Number(result.revision);
+        if (typeof rememberCastleOwnerCity === 'function') rememberCastleOwnerCity(player.siegeCastle || null);
+        if (typeof updateUI === 'function') updateUI();
+        return result;
+    }
+    window.onlineCloudCastleStatus = async function () {
+        if (!cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
+        return applyCastleResult(await gameApi({ action:'castle.status', characterId:cloudSync.characterId }));
+    };
+    window.onlineCloudClaimPersonalCastle = async function (city) {
+        if (!cloudSync.sessionToken || !cloudSync.characterId) throw new Error('ONLINE_SESSION_REQUIRED');
+        return applyCastleResult(await gameApi({ action:'castle.claim', characterId:cloudSync.characterId, city:city, requestId:newUuid() }));
     };
     window.onlineAuthIsSignedIn = function () { return !!activeUser; };
     window.onlineCloudAllySnapshots = async function () {

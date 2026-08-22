@@ -210,7 +210,7 @@ Deno.serve(async (request) => {
     return error ? reply({ error: "CHARACTER_CREATE_FAILED" }, 500) : reply({ character: data }, 201);
   }
 
-  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","character.rename","leaderboard.online","runtime.config.read","runtime.config.update","sponsor.pass.status","sponsor.pass.purchase","offline.pass.purchase","offline.status","offline.arm","offline.disarm","offline.settle","offline.ack","offline.return.check","offline.return","map.entry","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
+  const protectedActions = new Set(["gm.status","checkpoint.read","checkpoint.write","world.send","character.rename","leaderboard.online","runtime.config.read","runtime.config.update","castle.status","castle.claim","sponsor.pass.status","sponsor.pass.purchase","offline.pass.purchase","offline.status","offline.arm","offline.disarm","offline.settle","offline.ack","offline.return.check","offline.return","map.entry","gm.wallet.grant","gm.player.wallet.grant","gm.player.inventory.grant","gm.character.apply","gm.inventory.grant","gm.skills.learn","gm.collections.complete"]);
   if (protectedActions.has(String(input.action))) { const denied = await requireSession(); if (denied) return denied; }
   if (input.action === "gm.status") { const role = await getRole(); return reply({ allowed: !!role, role: role || "player" }); }
 
@@ -262,6 +262,21 @@ Deno.serve(async (request) => {
     if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
     const { data, error } = await auth.rpc("online_leaderboard", { p_session_token: String(input.sessionToken) });
     return error ? reply({ error: "LEADERBOARD_READ_FAILED" }, 500) : reply(isRecord(data) ? data : {});
+  }
+
+  if (input.action === "castle.status" || input.action === "castle.claim") {
+    const character = await ownCharacter(input.characterId);
+    if (!character) return reply({ error: "CHARACTER_NOT_FOUND" }, 404);
+    const token = String(input.sessionToken || "");
+    if (input.action === "castle.status") {
+      const { data, error } = await auth.rpc("personal_castle_status", { p_session_token: token, p_character_id: character.id });
+      return error ? reply({ error: "CASTLE_STATUS_FAILED" }, 500) : reply(isRecord(data) ? data : {});
+    }
+    const city = String(input.city || "");
+    if (!uuid(input.requestId) || !["kent", "windwood", "heine"].includes(city)) return reply({ error: "INVALID_CASTLE_CLAIM" }, 400);
+    const { data, error } = await auth.rpc("personal_castle_claim", { p_session_token: token, p_character_id: character.id, p_city: city, p_request_id: String(input.requestId) });
+    if (error) return reply({ error: "CASTLE_CLAIM_FAILED" }, 500);
+    return reply(isRecord(data) ? data : {});
   }
 
   // Sponsor passes are a server purchase: the browser only asks for a status

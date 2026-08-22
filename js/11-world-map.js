@@ -257,9 +257,22 @@ function _castleOwnerApply(city) {
 }
 function castleOwnerCity(force) {
     let ctx = _castleOwnerContext();
-    if (!force && _castleOwnerCacheReady()) return _castleOwnerCache.city;
+    // A cached owner is only a render optimisation; the 24-hour lease still
+    // has to be re-evaluated on every access so guards/maps stop immediately.
+    if (!force && _castleOwnerCacheReady()) {
+        let cachedExpiry = ctx.playerRef ? Number(ctx.playerRef.siegeCastleExpiresAt || 0) : 0;
+        if (_castleOwnerCache.city && cachedExpiry > Date.now()) return _castleOwnerCache.city;
+        if (!_castleOwnerCache.city) return null;
+    }
     // 攻城以目前角色為單位；城堡歸屬只讀此角色自己的存檔，不再讀血盟共用資料。
-    let personalCity = ctx.playerRef && SIEGE_CITY[ctx.playerRef.siegeCastle] ? ctx.playerRef.siegeCastle : null;
+    let expiresAt = ctx.playerRef ? Number(ctx.playerRef.siegeCastleExpiresAt || 0) : 0;
+    let personalCity = ctx.playerRef && expiresAt > Date.now() && SIEGE_CITY[ctx.playerRef.siegeCastle] ? ctx.playerRef.siegeCastle : null;
+    if (!personalCity && ctx.playerRef && ctx.playerRef.siegeCastle) {
+        delete ctx.playerRef.siegeCastle;
+        delete ctx.playerRef.siegeCastleExpiresAt;
+        delete ctx.playerRef.castleGuards;
+        ctx.playerRef.guardsV2 = [];
+    }
     let city = personalCity;
     _castleOwnerCache = { playerRef:ctx.playerRef, mode:ctx.mode, ready:true, city:_castleOwnerApply(city) };
     return _castleOwnerCache.city;
@@ -744,7 +757,7 @@ function startSiege(faction, city) {
     changeMap(true);
     updateUI();
 }
-function endSiege(result) {
+async function endSiege(result) {
     let s = player.siege; if (!s || !s.active) return;
     let _npcDefenderClanId = s.npcDefenderClanId || null;
     s.active = false; s.result = result;
@@ -756,8 +769,19 @@ function endSiege(result) {
     let _cfg = siegeCityCfg();
     if (result === 'win') {
         let previous = SIEGE_CITY[player.siegeCastle] ? player.siegeCastle : null;
-        player.siegeCastle = _cfg.key;
         let setResult = { ok:true, previous:previous, castle:_cfg.key };
+        if (typeof window !== 'undefined' && typeof window.onlineAuthIsSignedIn === 'function' && window.onlineAuthIsSignedIn()) {
+            try {
+                let claim = await window.onlineCloudClaimPersonalCastle(_cfg.key);
+                setResult = claim && claim.active ? { ok:true, previous:previous, castle:_cfg.key } : { ok:false };
+            } catch (e) {
+                setResult = { ok:false };
+                logSys('<span class="text-red-400 font-bold">攻城獲勝，但伺服器未能建立 24 小時城堡資格；未取得城堡與護衛。</span>');
+            }
+        } else {
+            player.siegeCastle = _cfg.key;
+            player.siegeCastleExpiresAt = Date.now() + 24 * 60 * 60 * 1000;
+        }
         if (setResult && setResult.ok) {
             rememberCastleOwnerCity(_cfg.key);   // 寫入成功後立即更新快取，不等待下一個 5 秒檢查
             if (typeof npcClanOnSiegeResult === 'function') npcClanOnSiegeResult(_cfg.key, 'win', _npcDefenderClanId);
